@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "name": "date-picker",
+  "displayName": "日期选择器",
+  "addonType": "et",
+  "version": "1.0.1",
+  "archive": "wps-addon-build/date-picker.7z",
+  "archiveRoot": "date-picker_1.0.1",
+  "archiveSize": 21607,
+  "archiveSha256": "be3f8714c569dbcce43feea7d3672d85687bd2537bc8996288f6ad804d6d4bba",
+  "publishArtifact": "wps-addon-publish/publish.html",
+  "publishArtifactSha256": "fea04d6beafca1629ca2bc9ae1b66572a4a8b8f4ae4d2f0943804c403763c923",
+  "legacyDirectoryNames": [
+    "date-picker_v1.0.1",
+    "date-picker_1.0.0",
+    "date-picker_v1.0.0"
+  ],
+  "wps": {
+    "bundleId": "com.kingsoft.wpsoffice.mac",
+    "applicationPath": "/Applications/wpsoffice.app",
+    "jsAddonsRelativeToHome": "Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons"
+  }
+}
+

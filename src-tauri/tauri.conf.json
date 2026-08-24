@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "WPS 加载项安装器",
+  "version": "0.1.0",
+  "identifier": "com.liqiong.wps-addon-installer",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "WPS 加载项安装器",
+        "width": 620,
+        "height": 560,
+        "resizable": false,
+        "fullscreen": false,
+        "devtools": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' asset:; style-src 'self'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg"],
+    "icon": ["icons/icon.icns"],
+    "resources": {
+      "resources/addon/addon-manifest.json": "addon/addon-manifest.json",
+      "resources/addon/wps-addon-build/date-picker.7z": "addon/wps-addon-build/date-picker.7z",
+      "resources/addon/wps-addon-publish/publish.html": "addon/wps-addon-publish/publish.html"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}

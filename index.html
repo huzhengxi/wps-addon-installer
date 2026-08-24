@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WPS 加载项安装器</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <p class="eyebrow">WPS OFFLINE ADDON</p>
+        <h1>日期选择器安装器</h1>
+        <p class="subtle">离线安装、修复或卸载 WPS 表格日期选择器。</p>
+      </header>
+
+      <section class="status-card" aria-live="polite">
+        <div class="status-heading">
+          <div>
+            <p class="label">当前状态</p>
+            <h2 id="status-title">正在检查环境…</h2>
+          </div>
+          <span id="status-badge" class="badge checking">检查中</span>
+        </div>
+        <dl id="environment-details" class="details"></dl>
+      </section>
+
+      <p id="operation-message" class="operation-message" role="status"></p>
+
+      <section class="actions" aria-label="加载项操作">
+        <button id="install-button" class="primary" type="button">安装 / 修复</button>
+        <button id="uninstall-button" class="secondary" type="button">卸载</button>
+      </section>
+
+      <section class="help">
+        <p>安装或卸载完成后会重启 WPS；请先保存正在编辑的文档。</p>
+        <button id="copy-diagnostics" class="link-button" type="button">复制诊断信息</button>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
