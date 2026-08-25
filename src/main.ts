@@ -2,8 +2,10 @@ import "./styles.css";
 import {
   type EnvironmentReport,
   type InstallationStatus,
+  type OperationProgress,
   installAddon,
   inspectEnvironment,
+  listenToOperationProgress,
   uninstallAddon
 } from "./api";
 
@@ -14,6 +16,11 @@ const title = document.querySelector<HTMLElement>("#status-title")!;
 const badge = document.querySelector<HTMLElement>("#status-badge")!;
 const details = document.querySelector<HTMLElement>("#environment-details")!;
 const message = document.querySelector<HTMLElement>("#operation-message")!;
+const progress = document.querySelector<HTMLElement>("#operation-progress")!;
+const progressMessage = document.querySelector<HTMLElement>("#progress-message")!;
+const progressPercent = document.querySelector<HTMLElement>("#progress-percent")!;
+const progressTrack = document.querySelector<HTMLElement>("#progress-track")!;
+const progressBar = document.querySelector<HTMLElement>("#progress-bar")!;
 
 let latestReport: EnvironmentReport | undefined;
 
@@ -25,11 +32,42 @@ const labels: Record<InstallationStatus, string> = {
   unsupported: "环境不支持"
 };
 
-function setBusy(busy: boolean, text?: string) {
+function setBusy(busy: boolean, action?: "install" | "uninstall") {
   installButton.disabled = busy;
   uninstallButton.disabled = busy;
   copyButton.disabled = busy;
-  if (text) message.textContent = text;
+  installButton.setAttribute("aria-busy", String(busy && action === "install"));
+  uninstallButton.setAttribute("aria-busy", String(busy && action === "uninstall"));
+  installButton.classList.toggle("is-loading", busy && action === "install");
+  uninstallButton.classList.toggle("is-loading", busy && action === "uninstall");
+  installButton.querySelector<HTMLElement>(".button-label")!.textContent =
+    busy && action === "install" ? "正在安装…" : "安装 / 修复";
+  uninstallButton.querySelector<HTMLElement>(".button-label")!.textContent =
+    busy && action === "uninstall" ? "正在卸载…" : "卸载";
+}
+
+function updateProgress(update: OperationProgress) {
+  const percent = Math.max(0, Math.min(100, update.percent));
+  progress.hidden = false;
+  progress.classList.remove("failed");
+  progressMessage.textContent = update.message;
+  progressPercent.textContent = `${percent}%`;
+  progressTrack.setAttribute("aria-valuenow", String(percent));
+  progressBar.style.width = `${percent}%`;
+}
+
+function failProgress(error: unknown) {
+  progress.hidden = false;
+  progress.classList.add("failed");
+  progressMessage.textContent = readableError(error);
+}
+
+function resetProgress(action: "install" | "uninstall") {
+  updateProgress({
+    action,
+    percent: 0,
+    message: action === "install" ? "准备安装…" : "准备卸载…"
+  });
 }
 
 function setReport(report: EnvironmentReport) {
@@ -78,16 +116,29 @@ async function run(action: "install" | "uninstall") {
     : "卸载会关闭并重新打开 WPS。请先保存所有 WPS 文档，是否继续？";
   if (!window.confirm(prompt)) return;
 
-  setBusy(true, action === "install" ? "正在安装：校验载荷…" : "正在卸载加载项…");
+  message.textContent = "";
+  resetProgress(action);
+  setBusy(true, action);
+  let unlisten: (() => void) | undefined;
   try {
+    unlisten = await listenToOperationProgress((update) => {
+      if (update.action === action) updateProgress(update);
+    });
     const result = action === "install" ? await installAddon() : await uninstallAddon();
+    updateProgress({
+      action,
+      percent: 100,
+      message: action === "install" ? "安装完成" : "卸载完成"
+    });
     message.textContent = result.warnings.length
       ? `${result.message} ${result.warnings.join("；")}`
       : result.message;
     await refresh(false);
   } catch (error) {
     message.textContent = readableError(error);
+    failProgress(error);
   } finally {
+    unlisten?.();
     setBusy(false);
   }
 }

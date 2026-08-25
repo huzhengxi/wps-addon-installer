@@ -7,7 +7,7 @@ mod wps;
 
 use std::sync::{Mutex, OnceLock};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use thiserror::Error;
 
 use crate::model::{EnvironmentReport, InstallationStatus, OperationReport};
@@ -39,6 +39,17 @@ fn lock_operation() -> Result<std::sync::MutexGuard<'static, ()>, InstallerError
         .get_or_init(|| Mutex::new(()))
         .try_lock()
         .map_err(|_| InstallerError::OperationBusy)
+}
+
+fn progress(app: &AppHandle, action: &str, percent: u8, message: &str) {
+    let _ = app.emit(
+        "operation-progress",
+        serde_json::json!({
+            "action": action,
+            "percent": percent,
+            "message": message,
+        }),
+    );
 }
 
 fn load(app: &AppHandle) -> Result<(AddonManifest, PayloadPaths, InstallPaths), InstallerError> {
@@ -120,32 +131,38 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
 
 pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     let _guard = lock_operation()?;
+    progress(app, "install", 5, "正在检查 WPS 环境…");
     if !wps::application_exists() {
         return Err(InstallerError::WpsNotFound);
     }
 
+    progress(app, "install", 20, "正在校验内置加载项…");
     let (manifest, payload, paths) = load(app)?;
     paths.ensure_jsaddons_dir()?;
 
+    progress(app, "install", 40, "正在解压加载项…");
     let extraction = tempfile::Builder::new()
         .prefix("wps-addon-installer-")
         .tempdir()
         .map_err(InstallerError::Io)?;
     archive::extract_and_validate(&payload.archive, extraction.path(), &manifest)?;
+    progress(app, "install", 65, "正在写入加载项文件…");
     transaction::install(
         &paths,
         extraction.path().join(&manifest.archive_root),
         &manifest,
     )?;
 
+    progress(app, "install", 82, "正在清理旧版本…");
     let mut warnings = transaction::remove_legacy_dirs(&paths, &manifest);
+    progress(app, "install", 90, "正在重新打开 WPS…");
     let restart = wps::restart();
     let restart_succeeded = restart.is_ok();
     if let Err(error) = restart {
         warnings.push(format!("加载项已安装，但 WPS 重启失败：{error}"));
     }
 
-    Ok(OperationReport {
+    let report = OperationReport {
         action: "install".into(),
         message: if restart_succeeded {
             "日期选择器已安装，WPS 已重新打开。".into()
@@ -155,31 +172,39 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
         restart_attempted: true,
         restart_succeeded,
         warnings,
-    })
+    };
+    progress(app, "install", 100, "安装完成");
+    Ok(report)
 }
 
 pub fn uninstall(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     let _guard = lock_operation()?;
+    progress(app, "uninstall", 5, "正在检查 WPS 环境…");
     if !wps::application_exists() {
         return Err(InstallerError::WpsNotFound);
     }
 
+    progress(app, "uninstall", 25, "正在校验加载项信息…");
     let (manifest, _payload, paths) = load(app)?;
     paths.ensure_jsaddons_dir()?;
+    progress(app, "uninstall", 55, "正在移除加载项文件…");
     let mut warnings = transaction::remove_current_and_legacy_dirs(&paths, &manifest)?;
+    progress(app, "uninstall", 85, "正在重新打开 WPS…");
     let restart = wps::restart();
     let restart_succeeded = restart.is_ok();
     if let Err(error) = restart {
         warnings.push(format!("加载项已卸载，但 WPS 重启失败：{error}"));
     }
 
-    Ok(OperationReport {
+    let report = OperationReport {
         action: "uninstall".into(),
         message: "日期选择器已卸载；按现有 uninstall.sh 逻辑，publish.xml 未被修改。".into(),
         restart_attempted: true,
         restart_succeeded,
         warnings,
-    })
+    };
+    progress(app, "uninstall", 100, "卸载完成");
+    Ok(report)
 }
 
 pub fn restart_only(_app: &AppHandle) -> Result<OperationReport, InstallerError> {
