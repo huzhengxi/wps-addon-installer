@@ -1,11 +1,15 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDirectory, "..");
 const tauriCli = resolve(projectRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
+const childEnvironment = {
+  ...process.env,
+  PATH: [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter)
+};
 
 const packages = {
   macos: { host: "darwin", bundles: "dmg" },
@@ -53,5 +57,6 @@ if (!existsSync(tauriCli)) {
 console.log(`正在构建 ${platform} 安装包（${packageConfig.bundles}）…`);
 execFileSync(process.execPath, [tauriCli, "build", "--bundles", packageConfig.bundles, ...buildArguments], {
   cwd: projectRoot,
-  stdio: "inherit"
+  stdio: "inherit",
+  env: childEnvironment
 });

@@ -66,7 +66,7 @@ pub fn version() -> Result<String, String> {
 }
 
 pub fn version_is_supported(version: &str) -> Result<bool, String> {
-    Ok(Version::parse(version)? > Version::parse(MINIMUM_SUPPORTED_VERSION)?)
+    Ok(Version::parse(version)? >= Version::parse(MINIMUM_SUPPORTED_VERSION)?)
 }
 
 pub fn is_running() -> bool {

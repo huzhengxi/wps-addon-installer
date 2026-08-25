@@ -1,11 +1,15 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDirectory, "..");
 const tauriDirectory = resolve(projectRoot, "src-tauri");
+const childEnvironment = {
+  ...process.env,
+  PATH: [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter)
+};
 
 function optionValue(args, longName, shortName) {
   const inline = args.find((argument) => argument.startsWith(`${longName}=`));
@@ -76,7 +80,8 @@ if (!existsSync(tauriCli)) {
 console.log("正在构建 macOS .app…");
 execFileSync(process.execPath, [tauriCli, "build", "--bundles", "app", ...buildArguments], {
   cwd: projectRoot,
-  stdio: "inherit"
+  stdio: "inherit",
+  env: childEnvironment
 });
 
 if (!existsSync(appPath)) {

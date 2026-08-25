@@ -12,7 +12,7 @@
 
 已实现首版前端、Rust 安装/卸载命令、资源校验、同步脚本和单元测试；真实 WPS 验收、双架构 DMG、签名和公证仍需在目标机器完成。
 
-安装前会读取 `/Applications/wpsoffice.app/Contents/Info.plist` 中的 `CFBundleShortVersionString`。WPS 版本必须严格大于 `12.1.26055`；版本相同、较低或无法读取时，安装会被阻止。
+安装前会读取 `/Applications/wpsoffice.app/Contents/Info.plist` 中的 `CFBundleShortVersionString`。WPS 版本必须严格大于等于 `12.1.26055`；版本相同、较低或无法读取时，安装会被阻止。
 
 ## 本地运行
 
@@ -27,6 +27,8 @@ npm run tauri dev
 ```bash
 npm run sync:addon
 ```
+
+
 
 ## 打包
 
@@ -64,6 +66,8 @@ npm run package:linux    # Linux：AppImage、DEB
 
 > Windows 和 Linux 的安装器目前仅保证可以构建。应用的 WPS 探测、安装、卸载和重启逻辑仍只支持 macOS，运行时会显示“不支持的系统”；在实现对应的 WPS 路径和进程控制前，不应对外发布这两个平台的包。
 
+
+
 ## 第一版范围
 
 - 平台：macOS；
@@ -89,8 +93,11 @@ Windows、Linux、在线升级、多加载项管理和应用自动更新暂不�
 - [docs/install-contract.md](./docs/install-contract.md)：脚本行为到 Tauri 行为的逐项映射；
 - [docs/decisions.md](./docs/decisions.md)：已确定事项与待确认事项。
 
+
+
 ## 官方参考
 
 - [Tauri v2：嵌入额外资源](https://v2.tauri.app/develop/resources/)
 - [Tauri v2：前端调用 Rust](https://v2.tauri.app/develop/calling-rust/)
 - [Tauri v2：Capabilities](https://v2.tauri.app/security/capabilities/)
+
