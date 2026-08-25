@@ -12,6 +12,8 @@
 
 已实现首版前端、Rust 安装/卸载命令、资源校验、同步脚本和单元测试；真实 WPS 验收、双架构 DMG、签名和公证仍需在目标机器完成。
 
+安装前会读取 `/Applications/wpsoffice.app/Contents/Info.plist` 中的 `CFBundleShortVersionString`。WPS 版本必须严格大于 `12.1.26055`；版本相同、较低或无法读取时，安装会被阻止。
+
 ## 本地运行
 
 ```bash
@@ -20,7 +22,7 @@ npm install
 npm run tauri dev
 ```
 
-首次构建需要 Rust `1.88.0`（工程已通过 `rust-toolchain.toml` 固定）。资源更新使用：
+首次构建需要 Rust `1.88.0`（工程已通过 `rust-toolchain.toml` 固定）和 Node.js `20.19.0+` 或 `22.12.0+`。资源更新使用：
 
 ```bash
 npm run sync:addon

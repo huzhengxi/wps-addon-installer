@@ -18,6 +18,8 @@ pub struct EnvironmentReport {
     pub install_status: InstallationStatus,
     pub wps_installed: bool,
     pub wps_running: bool,
+    pub wps_version: Option<String>,
+    pub wps_version_supported: bool,
     pub js_addons_path: String,
     pub payload_valid: bool,
     pub addon_directory_exists: bool,

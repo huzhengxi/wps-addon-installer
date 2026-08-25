@@ -39,7 +39,7 @@ const labels: Record<InstallationStatus, string> = {
 };
 
 function setBusy(busy: boolean, action?: "install" | "uninstall") {
-  installButton.disabled = busy;
+  installButton.disabled = busy || !latestReport?.wpsVersionSupported;
   uninstallButton.disabled = busy;
   copyButton.disabled = busy;
   installButton.setAttribute("aria-busy", String(busy && action === "install"));
@@ -97,6 +97,7 @@ function confirmOperation(action: "install" | "uninstall") {
 
 function setReport(report: EnvironmentReport) {
   latestReport = report;
+  installButton.disabled = !report.wpsVersionSupported;
   title.textContent = labels[report.installStatus];
   badge.textContent = labels[report.installStatus];
   badge.className = `badge ${report.installStatus}`;
@@ -104,6 +105,8 @@ function setReport(report: EnvironmentReport) {
     ...[
       ["内置版本", report.addonVersion],
       ["WPS", report.wpsInstalled ? (report.wpsRunning ? "已安装，正在运行" : "已安装") : "未找到 /Applications/wpsoffice.app"],
+      ["WPS 版本", report.wpsVersion ?? "无法读取"],
+      ["版本要求", report.wpsVersionSupported ? "> 12.1.26055（通过）" : "> 12.1.26055（不通过）"],
       ["加载项状态", report.message],
       ["运行架构", report.architecture],
       ["载荷校验", report.payloadValid ? "通过" : "失败"]

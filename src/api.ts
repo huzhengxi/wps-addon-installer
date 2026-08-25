@@ -14,6 +14,8 @@ export interface EnvironmentReport {
   installStatus: InstallationStatus;
   wpsInstalled: boolean;
   wpsRunning: boolean;
+  wpsVersion: string | null;
+  wpsVersionSupported: boolean;
   jsAddonsPath: string;
   payloadValid: boolean;
   addonDirectoryExists: boolean;

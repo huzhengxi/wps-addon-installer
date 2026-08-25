@@ -67,14 +67,14 @@ const embeddedManifest = resolve(appPath, "Contents", "Resources", "addon", "add
 const archiveName = `${packageConfig.name}_${tauriConfig.version}_${architectureName(target)}.zip`;
 const archivePath = resolve(bundleDirectory, archiveName);
 const temporaryArchivePath = `${archivePath}.tmp`;
-const tauriCli = resolve(projectRoot, "node_modules", ".bin", "tauri");
+const tauriCli = resolve(projectRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 if (!existsSync(tauriCli)) {
   throw new Error("未找到 Tauri CLI，请先运行 npm install。");
 }
 
 console.log("正在构建 macOS .app…");
-execFileSync(tauriCli, ["build", "--bundles", "app", ...buildArguments], {
+execFileSync(process.execPath, [tauriCli, "build", "--bundles", "app", ...buildArguments], {
   cwd: projectRoot,
   stdio: "inherit"
 });

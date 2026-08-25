@@ -22,6 +22,13 @@ pub enum InstallerError {
     OperationBusy,
     #[error("未找到 WPS：/Applications/wpsoffice.app。请安装 macOS 版 WPS 后重试。")]
     WpsNotFound,
+    #[error("无法读取或解析 WPS 版本号：{0}")]
+    WpsVersionUnreadable(String),
+    #[error("WPS 版本 {actual} 不满足要求：必须大于 {minimum}。")]
+    WpsVersionUnsupported {
+        actual: String,
+        minimum: &'static str,
+    },
     #[error("内置加载项资源无效：{0}")]
     PayloadInvalid(String),
     #[error("加载项目录不可安全访问：{0}")]
@@ -61,6 +68,17 @@ fn load(app: &AppHandle) -> Result<(AddonManifest, PayloadPaths, InstallPaths), 
     Ok((manifest, payload, paths))
 }
 
+fn ensure_supported_wps_version() -> Result<(), InstallerError> {
+    let version = wps::version().map_err(InstallerError::WpsVersionUnreadable)?;
+    if !wps::version_is_supported(&version).map_err(InstallerError::WpsVersionUnreadable)? {
+        return Err(InstallerError::WpsVersionUnsupported {
+            actual: version,
+            minimum: wps::MINIMUM_SUPPORTED_VERSION,
+        });
+    }
+    Ok(())
+}
+
 pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
     let architecture = std::env::consts::ARCH.to_owned();
     if !cfg!(target_os = "macos") {
@@ -70,6 +88,8 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
             install_status: InstallationStatus::Unsupported,
             wps_installed: false,
             wps_running: false,
+            wps_version: None,
+            wps_version_supported: false,
             js_addons_path: "不支持的系统".into(),
             payload_valid: false,
             addon_directory_exists: false,
@@ -79,6 +99,11 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
     }
     let wps_installed = wps::application_exists();
     let wps_running = wps::is_running();
+    let wps_version = wps_installed.then(wps::version).transpose().ok().flatten();
+    let wps_version_supported = wps_version
+        .as_deref()
+        .and_then(|version| wps::version_is_supported(version).ok())
+        .unwrap_or(false);
 
     let (manifest, _payload, paths) = match load(app) {
         Ok(value) => value,
@@ -89,6 +114,8 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
                 install_status: InstallationStatus::PayloadInvalid,
                 wps_installed,
                 wps_running,
+                wps_version,
+                wps_version_supported,
                 js_addons_path: "无法解析".into(),
                 payload_valid: false,
                 addon_directory_exists: false,
@@ -121,6 +148,8 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
         install_status,
         wps_installed,
         wps_running,
+        wps_version,
+        wps_version_supported,
         js_addons_path: paths.jsaddons_dir.display().to_string(),
         payload_valid: true,
         addon_directory_exists,
@@ -135,6 +164,7 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     if !wps::application_exists() {
         return Err(InstallerError::WpsNotFound);
     }
+    ensure_supported_wps_version()?;
 
     progress(app, "install", 20, "正在校验内置加载项…");
     let (manifest, payload, paths) = load(app)?;
