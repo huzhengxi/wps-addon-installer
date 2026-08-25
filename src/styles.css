@@ -50,14 +50,22 @@ button:disabled { cursor: wait; opacity: .55; }
 .help { margin-top: 10px; color: #667085; font-size: 12px; line-height: 1.4; }
 .help p { margin: 0 0 3px; }
 .link-button { min-height: auto; padding: 0; border: 0; background: transparent; color: #5c48c9; font-size: 13px; font-weight: 600; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 24px; background: rgba(18, 25, 39, .44); backdrop-filter: blur(3px); }
+.dialog-backdrop[hidden] { display: none; }
+.confirmation-dialog { width: min(100%, 410px); padding: 22px; border: 1px solid #d9e0eb; border-radius: 16px; background: #fff; box-shadow: 0 20px 55px rgba(17, 27, 46, .24); }
+.dialog-eyebrow { margin: 0 0 5px; color: #6a57db; font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.confirmation-message { margin: 10px 0 20px; color: #5b6980; font-size: 14px; line-height: 1.55; }
+.confirmation-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmation-actions button { min-height: 40px; }
 @media (prefers-color-scheme: dark) {
   :root { color: #edf1fa; background: #10141d; }
-  .status-card, .secondary { border-color: #2b3546; background: #1a202c; color: #edf1fa; box-shadow: none; }
+  .status-card, .secondary, .confirmation-dialog { border-color: #2b3546; background: #1a202c; color: #edf1fa; box-shadow: none; }
   .subtle, .label, .details dt, .help, .operation-message { color: #aab6ca; }
   .details dd { color: #e0e7f5; }
   .details { border-color: #293244; }
   .operation-progress { border-color: #2b3546; background: #171d28; }
   .progress-heading { color: #b9c4d6; }
   .progress-track { background: #30394a; }
+  .confirmation-message { color: #aab6ca; }
   .badge.not_installed { background: #293244; color: #c5d0e3; }
 }

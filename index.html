@@ -60,6 +60,19 @@
         <button id="copy-diagnostics" class="link-button" type="button">复制诊断信息</button>
       </section>
     </main>
+
+    <div id="confirmation-dialog" class="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" hidden>
+      <section class="confirmation-dialog">
+        <p class="dialog-eyebrow">请确认操作</p>
+        <h2 id="confirmation-title">继续操作？</h2>
+        <p id="confirmation-message" class="confirmation-message"></p>
+        <div class="confirmation-actions">
+          <button id="confirmation-cancel" class="secondary" type="button">取消</button>
+          <button id="confirmation-confirm" class="primary" type="button">继续</button>
+        </div>
+      </section>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

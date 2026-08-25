@@ -21,8 +21,14 @@ const progressMessage = document.querySelector<HTMLElement>("#progress-message")
 const progressPercent = document.querySelector<HTMLElement>("#progress-percent")!;
 const progressTrack = document.querySelector<HTMLElement>("#progress-track")!;
 const progressBar = document.querySelector<HTMLElement>("#progress-bar")!;
+const confirmationDialog = document.querySelector<HTMLElement>("#confirmation-dialog")!;
+const confirmationTitle = document.querySelector<HTMLElement>("#confirmation-title")!;
+const confirmationMessage = document.querySelector<HTMLElement>("#confirmation-message")!;
+const confirmationCancel = document.querySelector<HTMLButtonElement>("#confirmation-cancel")!;
+const confirmationConfirm = document.querySelector<HTMLButtonElement>("#confirmation-confirm")!;
 
 let latestReport: EnvironmentReport | undefined;
+let confirmationResolver: ((confirmed: boolean) => void) | undefined;
 
 const labels: Record<InstallationStatus, string> = {
   not_installed: "尚未安装",
@@ -70,6 +76,25 @@ function resetProgress(action: "install" | "uninstall") {
   });
 }
 
+function closeConfirmation(confirmed: boolean) {
+  confirmationDialog.hidden = true;
+  confirmationResolver?.(confirmed);
+  confirmationResolver = undefined;
+}
+
+function confirmOperation(action: "install" | "uninstall") {
+  confirmationTitle.textContent = action === "install" ? "安装日期选择器？" : "卸载日期选择器？";
+  confirmationMessage.textContent = action === "install"
+    ? "安装或修复会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
+    : "卸载会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。";
+  confirmationDialog.hidden = false;
+  confirmationConfirm.textContent = action === "install" ? "开始安装" : "确认卸载";
+  confirmationConfirm.focus();
+  return new Promise<boolean>((resolve) => {
+    confirmationResolver = resolve;
+  });
+}
+
 function setReport(report: EnvironmentReport) {
   latestReport = report;
   title.textContent = labels[report.installStatus];
@@ -107,14 +132,13 @@ async function refresh(clearMessage = true) {
 }
 
 function readableError(error: unknown) {
-  return typeof error === "string" ? error : "操作失败，请复制诊断信息后检查日志。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  return "操作失败，请复制诊断信息后检查日志。";
 }
 
 async function run(action: "install" | "uninstall") {
-  const prompt = action === "install"
-    ? "安装或修复会关闭并重新打开 WPS。请先保存所有 WPS 文档，是否继续？"
-    : "卸载会关闭并重新打开 WPS。请先保存所有 WPS 文档，是否继续？";
-  if (!window.confirm(prompt)) return;
+  if (!await confirmOperation(action)) return;
 
   message.textContent = "";
   resetProgress(action);
@@ -124,6 +148,10 @@ async function run(action: "install" | "uninstall") {
     unlisten = await listenToOperationProgress((update) => {
       if (update.action === action) updateProgress(update);
     });
+  } catch (error) {
+    message.textContent = `无法显示实时阶段，操作将继续：${readableError(error)}`;
+  }
+  try {
     const result = action === "install" ? await installAddon() : await uninstallAddon();
     updateProgress({
       action,
@@ -143,6 +171,14 @@ async function run(action: "install" | "uninstall") {
   }
 }
 
+confirmationCancel.addEventListener("click", () => closeConfirmation(false));
+confirmationConfirm.addEventListener("click", () => closeConfirmation(true));
+confirmationDialog.addEventListener("click", (event) => {
+  if (event.target === confirmationDialog) closeConfirmation(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !confirmationDialog.hidden) closeConfirmation(false);
+});
 installButton.addEventListener("click", () => void run("install"));
 uninstallButton.addEventListener("click", () => void run("uninstall"));
 copyButton.addEventListener("click", async () => {
