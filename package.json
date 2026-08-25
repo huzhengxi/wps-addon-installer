@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",
     "check": "npm run build",
+    "package:zip": "node scripts/package-macos-zip.mjs",
     "sync:addon": "node scripts/sync-addon-resources.mjs --skip-build"
   },
   "dependencies": {

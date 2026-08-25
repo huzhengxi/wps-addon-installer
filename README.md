@@ -26,6 +26,30 @@ npm run tauri dev
 npm run sync:addon
 ```
 
+## 打包
+
+现有 DMG 打包方式保持不变：
+
+```bash
+npm run tauri -- build
+```
+
+也可以生成无需安装、解压后直接运行的 `.app` ZIP 包：
+
+```bash
+npm run package:zip
+```
+
+ZIP 默认输出到 `src-tauri/target/release/bundle/macos/`。脚本使用 macOS 自带的 `ditto` 压缩，以保留 `.app` 的执行权限、扩展属性和签名信息。指定架构时可使用：
+
+```bash
+npm run package:zip -- --target aarch64-apple-darwin
+npm run package:zip -- --target x86_64-apple-darwin
+npm run package:zip -- --target universal-apple-darwin
+```
+
+未签名或未公证的应用仍可能触发 macOS Gatekeeper 提示；正式对外分发时，ZIP 内的 `.app` 与 DMG 版本一样需要完成 Developer ID 签名和公证。
+
 ## 第一版范围
 
 - 平台：macOS；
