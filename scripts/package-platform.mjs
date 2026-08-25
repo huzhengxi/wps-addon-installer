@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(scriptDirectory, "..");
-const tauriCli = resolve(projectRoot, "node_modules", ".bin", "tauri");
+const tauriCli = resolve(projectRoot, "node_modules", "@tauri-apps", "cli", "tauri.js");
 
 const packages = {
   macos: { host: "darwin", bundles: "dmg" },
@@ -51,7 +51,7 @@ if (!existsSync(tauriCli)) {
 }
 
 console.log(`正在构建 ${platform} 安装包（${packageConfig.bundles}）…`);
-execFileSync(tauriCli, ["build", "--bundles", packageConfig.bundles, ...buildArguments], {
+execFileSync(process.execPath, [tauriCli, "build", "--bundles", packageConfig.bundles, ...buildArguments], {
   cwd: projectRoot,
   stdio: "inherit"
 });
