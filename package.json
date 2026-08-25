@@ -9,6 +9,9 @@
     "tauri": "tauri",
     "check": "npm run build",
     "package:zip": "node scripts/package-macos-zip.mjs",
+    "package:macos": "node scripts/package-platform.mjs macos",
+    "package:windows": "node scripts/package-platform.mjs windows",
+    "package:linux": "node scripts/package-platform.mjs linux",
     "sync:addon": "node scripts/sync-addon-resources.mjs --skip-build"
   },
   "dependencies": {

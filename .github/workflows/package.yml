@@ -1,0 +1,81 @@
+name: Package desktop app
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to package
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - macos
+          - windows
+          - linux
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  package-macos:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run package:macos
+      - run: npm run package:zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wps-addon-installer-macos-arm64
+          path: src-tauri/target/release/bundle/{dmg,macos}/*
+          if-no-files-found: error
+
+  package-windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run package:windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wps-addon-installer-windows-x64
+          path: src-tauri/target/release/bundle/{msi,nsis}/*
+          if-no-files-found: error
+
+  package-linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Linux bundle dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run check
+      - run: npm run package:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wps-addon-installer-linux-x64
+          path: src-tauri/target/release/bundle/{appimage,deb}/*
+          if-no-files-found: error

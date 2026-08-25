@@ -50,6 +50,18 @@ npm run package:zip -- --target universal-apple-darwin
 
 未签名或未公证的应用仍可能触发 macOS Gatekeeper 提示；正式对外分发时，ZIP 内的 `.app` 与 DMG 版本一样需要完成 Developer ID 签名和公证。
 
+各平台也可分别构建对应的安装包：
+
+```bash
+npm run package:macos    # macOS：DMG
+npm run package:windows  # Windows：MSI、NSIS 安装程序
+npm run package:linux    # Linux：AppImage、DEB
+```
+
+安装包需要在对应的操作系统上构建，不能在一台电脑上直接生成全部平台的原生包。可在 GitHub Actions 的 **Package desktop app** 工作流中选择 `all` 一次构建 macOS、Windows、Linux，或选择单一平台；产物会作为 workflow artifacts 上传。
+
+> Windows 和 Linux 的安装器目前仅保证可以构建。应用的 WPS 探测、安装、卸载和重启逻辑仍只支持 macOS，运行时会显示“不支持的系统”；在实现对应的 WPS 路径和进程控制前，不应对外发布这两个平台的包。
+
 ## 第一版范围
 
 - 平台：macOS；
