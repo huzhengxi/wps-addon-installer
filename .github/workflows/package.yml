@@ -26,7 +26,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -34,7 +34,7 @@ jobs:
       - run: npm run check
       - run: npm run package:macos
       - run: npm run package:zip
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-macos-arm64
           path: |
@@ -49,14 +49,14 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm run package:windows
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-windows-x64
           path: |
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -80,7 +80,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run package:linux
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-linux-x64
           path: |
