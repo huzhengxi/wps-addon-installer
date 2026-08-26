@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Create and push a versioned release commit and Git tag."""
+"""创建并推送带版本号的发布提交及 Git tag。"""
 
 from __future__ import annotations
 
@@ -46,11 +46,11 @@ def load_tauri_config() -> dict[str, object]:
 def next_patch_version() -> str:
     current = load_tauri_config().get("version")
     if not isinstance(current, str):
-        fail("src-tauri/tauri.conf.json must contain a string version.")
+        fail("src-tauri/tauri.conf.json 必须包含字符串形式的 version。")
 
     match = RELEASE_VERSION.fullmatch(current)
     if not match:
-        fail(f"Cannot increment non-release version: {current}")
+        fail(f"无法自增非发布版本号：{current}")
 
     major, minor, patch = match.groups()
     return f"{major}.{minor}.{int(patch) + 1}"
@@ -58,19 +58,19 @@ def next_patch_version() -> str:
 
 def ensure_clean_worktree() -> None:
     if run("git", "status", "--porcelain", capture_output=True):
-        fail("Working tree is not clean. Commit or stash existing changes before creating a release.")
+        fail("工作区不干净，请先提交或暂存现有改动再发版。")
 
 
 def ensure_new_tag(tag: str) -> None:
     if subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"], cwd=ROOT
     ).returncode == 0:
-        fail(f"Local tag {tag} already exists.")
+        fail(f"本地 tag {tag} 已存在。")
 
     if subprocess.run(
         ["git", "ls-remote", "--exit-code", "--tags", "origin", f"refs/tags/{tag}"], cwd=ROOT
     ).returncode == 0:
-        fail(f"Remote tag {tag} already exists.")
+        fail(f"远端 tag {tag} 已存在。")
 
 
 def update_tauri_version(version: str) -> None:
@@ -81,45 +81,54 @@ def update_tauri_version(version: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Update application versions, create a release commit and push its Git tag."
+        description="更新应用版本号，创建发布提交并推送 Git tag，"
+        "可选地将 release note 作为 tag 注释消息附带。"
     )
     parser.add_argument(
         "version",
         nargs="?",
-        help="Version to release, such as 0.2.0. Omit it to increment the Tauri patch version.",
+        help="要发布的版本号，可带或不带前缀 v，如 0.2.0 或 v0.2.0；"
+        "省略时自动对 Tauri patch 版本号自增。",
+    )
+    parser.add_argument(
+        "-m",
+        "--message",
+        default=None,
+        help="作为 tag 注释消息附带的 release note；省略时默认使用版本号（如 0.1.2）。",
     )
     arguments = parser.parse_args()
 
     version = (arguments.version or next_patch_version()).removeprefix("v")
     if not SEMVER.fullmatch(version):
-        fail("Version must be valid semantic version, for example: 0.1.1 or 0.1.1-rc.1")
+        fail("版本号必须是合法的语义化版本，例如：0.1.1 或 0.1.1-rc.1")
 
     ensure_clean_worktree()
 
     try:
         branch = run("git", "symbolic-ref", "--quiet", "--short", "HEAD", capture_output=True)
     except subprocess.CalledProcessError:
-        fail("A release must be created from a branch, not a detached HEAD.")
+        fail("发布必须从分支创建，不能在 detached HEAD 状态下进行。")
 
     try:
         run("git", "remote", "get-url", "origin", capture_output=True)
     except subprocess.CalledProcessError:
-        fail("The git remote 'origin' is required.")
+        fail("需要配置 git remote 'origin'。")
 
     tag = f"v{version}"
     ensure_new_tag(tag)
+    notes = arguments.message or version
 
-    # This also keeps package-lock.json project metadata in sync with package.json.
+    # 同时让 package-lock.json 的项目元信息与 package.json 保持一致。
     run("npm", "version", version, "--no-git-tag-version", "--ignore-scripts")
     update_tauri_version(version)
 
     run("git", "diff", "--check")
     run("git", "add", "--", "package.json", "package-lock.json", "src-tauri/tauri.conf.json")
     run("git", "commit", "-m", f"chore(release): {tag}")
-    run("git", "tag", "-a", tag, "-m", tag)
+    run("git", "tag", "-a", tag, "-m", notes)
     run("git", "push", "origin", f"HEAD:refs/heads/{branch}", f"refs/tags/{tag}")
 
-    print(f"Released {tag}. The tag workflow will build and publish the installers.")
+    print(f"已发布 {tag}。tag 工作流将构建并上传安装包。")
 
 
 if __name__ == "__main__":
