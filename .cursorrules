@@ -1,0 +1,18 @@
+# Git commit message（含 Source Control「Generate Commit Message」）
+
+为本仓库生成 Git commit message 时（包括 SCM 面板一键生成），必须遵守：
+
+1. **语言**：标题与正文一律使用**简体中文**；禁止用英文写 subject/body。
+2. **格式**：Conventional Commits — `<type>(<scope>): <subject>`，可选 body/footer。
+3. **type**（英文小写）：feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert
+4. **scope**：可选，模块名（如 system、pm25、screen、cursor）。
+5. **subject**：中文祈使句，≤50 字，句末不加句号；写「做了什么」，不写 "update files"。
+6. **body**：复杂改动时必填，中文说明原因与影响。
+7. **破坏性变更**：subject 加 `!` 或 footer `BREAKING CHANGE: <中文>`。
+
+示例（仅作风格参考，按实际 diff 生成）：
+- `feat(system): 移除 cache 统计与周期性 drop_caches`
+- `fix(pm25): 修复数据未就绪时的 I2C 重试风暴`
+- `chore(cursor): 添加中文 Conventional Commits 规范`
+
+不要生成：`Update code`、`Fix bug`、`WIP`、`misc changes`。
