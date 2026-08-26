@@ -66,6 +66,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Add x86_64 Rust target
+        run: rustup target add x86_64-apple-darwin
       - run: npm ci
       - run: npm run check
       - run: npm run package:zip -- --target x86_64-apple-darwin
