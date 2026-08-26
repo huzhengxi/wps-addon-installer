@@ -12,9 +12,9 @@ const childEnvironment = {
 };
 
 const packages = {
-  macos: { host: "darwin", bundles: "dmg" },
-  windows: { host: "win32", bundles: "msi,nsis" },
-  linux: { host: "linux", bundles: "appimage,deb" }
+  macos: { host: "darwin", bundles: "app" },
+  windows: { host: "win32", bundles: "nsis" },
+  linux: { host: "linux", bundles: "appimage" }
 };
 
 function printHelp() {
