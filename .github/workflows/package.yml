@@ -44,7 +44,9 @@ jobs:
 
   package-windows:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
-    runs-on: windows-latest
+    # WiX 3 MSI validation requires the Windows VBScript optional feature.
+    # Pin the image because windows-latest can move to images without it.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
