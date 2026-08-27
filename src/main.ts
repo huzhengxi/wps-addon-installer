@@ -30,6 +30,15 @@ const confirmationConfirm = document.querySelector<HTMLButtonElement>("#confirma
 let latestReport: EnvironmentReport | undefined;
 let confirmationResolver: ((confirmed: boolean) => void) | undefined;
 
+const isWindows = navigator.userAgent.includes("Windows");
+const wpsNotFoundLabel = isWindows
+  ? "未找到 WPS Office（需已安装并可从注册表或本地目录识别）"
+  : "未找到 /Applications/wpsoffice.app";
+
+function minimumVersionLabel(report: EnvironmentReport) {
+  return `>= ${report.wpsMinimumVersion || "未知"}`;
+}
+
 const labels: Record<InstallationStatus, string> = {
   not_installed: "尚未安装",
   installed: "已安装",
@@ -104,9 +113,14 @@ function setReport(report: EnvironmentReport) {
   details.replaceChildren(
     ...[
       ["内置版本", report.addonVersion],
-      ["WPS", report.wpsInstalled ? (report.wpsRunning ? "已安装，正在运行" : "已安装") : "未找到 /Applications/wpsoffice.app"],
+      ["WPS", report.wpsInstalled ? (report.wpsRunning ? "已安装，正在运行" : "已安装") : wpsNotFoundLabel],
       ["WPS 版本", report.wpsVersion ?? "无法读取"],
-      ["版本要求", report.wpsVersionSupported ? ">= 12.1.26055（通过）" : ">= 12.1.26055（不通过）"],
+      [
+        "版本要求",
+        report.wpsVersionSupported
+          ? `${minimumVersionLabel(report)}（通过）`
+          : `${minimumVersionLabel(report)}（不通过）`
+      ],
       ["加载项状态", report.message],
       ["运行架构", report.architecture],
       ["载荷校验", report.payloadValid ? "通过" : "失败"]

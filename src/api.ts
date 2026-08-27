@@ -16,6 +16,7 @@ export interface EnvironmentReport {
   wpsRunning: boolean;
   wpsVersion: string | null;
   wpsVersionSupported: boolean;
+  wpsMinimumVersion: string;
   jsAddonsPath: string;
   payloadValid: boolean;
   addonDirectoryExists: boolean;

@@ -51,6 +51,7 @@ mod tests {
                 bundle_id: "com.kingsoft.wpsoffice.mac".into(),
                 application_path: "/Applications/wpsoffice.app".into(),
                 js_addons_relative_to_home: "Library/test".into(),
+                windows: None,
             },
         }
     }

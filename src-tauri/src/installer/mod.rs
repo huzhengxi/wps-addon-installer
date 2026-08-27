@@ -20,8 +20,8 @@ static OPERATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 pub enum InstallerError {
     #[error("操作正在进行中，请等待当前任务完成。")]
     OperationBusy,
-    #[error("未找到 WPS：/Applications/wpsoffice.app。请安装 macOS 版 WPS 后重试。")]
-    WpsNotFound,
+    #[error("未找到 WPS Office（查找位置：{0}）。请先安装 WPS Office 后重试。")]
+    WpsNotFound(String),
     #[error("无法读取或解析 WPS 版本号：{0}")]
     WpsVersionUnreadable(String),
     #[error("WPS 版本 {actual} 不满足要求：必须大于 {minimum}。")]
@@ -81,7 +81,7 @@ fn ensure_supported_wps_version() -> Result<(), InstallerError> {
 
 pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
     let architecture = std::env::consts::ARCH.to_owned();
-    if !cfg!(target_os = "macos") {
+    if !(cfg!(target_os = "macos") || cfg!(target_os = "windows")) {
         return Ok(EnvironmentReport {
             architecture,
             addon_version: "未知".into(),
@@ -90,11 +90,12 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
             wps_running: false,
             wps_version: None,
             wps_version_supported: false,
+            wps_minimum_version: "未知".into(),
             js_addons_path: "不支持的系统".into(),
             payload_valid: false,
             addon_directory_exists: false,
             publish_entry_matches: false,
-            message: "第一版仅支持 macOS。".into(),
+            message: "当前系统暂不支持；安装器支持 macOS 与 Windows。".into(),
         });
     }
     let wps_installed = wps::application_exists();
@@ -116,6 +117,7 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
                 wps_running,
                 wps_version,
                 wps_version_supported,
+                wps_minimum_version: wps::MINIMUM_SUPPORTED_VERSION.into(),
                 js_addons_path: "无法解析".into(),
                 payload_valid: false,
                 addon_directory_exists: false,
@@ -150,6 +152,7 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
         wps_running,
         wps_version,
         wps_version_supported,
+        wps_minimum_version: wps::MINIMUM_SUPPORTED_VERSION.into(),
         js_addons_path: paths.jsaddons_dir.display().to_string(),
         payload_valid: true,
         addon_directory_exists,
@@ -162,7 +165,7 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     let _guard = lock_operation()?;
     progress(app, "install", 5, "正在检查 WPS 环境…");
     if !wps::application_exists() {
-        return Err(InstallerError::WpsNotFound);
+        return Err(InstallerError::WpsNotFound(wps::APPLICATION_HINT.into()));
     }
     ensure_supported_wps_version()?;
 
@@ -211,7 +214,7 @@ pub fn uninstall(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     let _guard = lock_operation()?;
     progress(app, "uninstall", 5, "正在检查 WPS 环境…");
     if !wps::application_exists() {
-        return Err(InstallerError::WpsNotFound);
+        return Err(InstallerError::WpsNotFound(wps::APPLICATION_HINT.into()));
     }
 
     progress(app, "uninstall", 25, "正在校验加载项信息…");
@@ -240,7 +243,7 @@ pub fn uninstall(app: &AppHandle) -> Result<OperationReport, InstallerError> {
 pub fn restart_only(_app: &AppHandle) -> Result<OperationReport, InstallerError> {
     let _guard = lock_operation()?;
     if !wps::application_exists() {
-        return Err(InstallerError::WpsNotFound);
+        return Err(InstallerError::WpsNotFound(wps::APPLICATION_HINT.into()));
     }
     wps::restart().map_err(|error| InstallerError::Commit(error.to_string()))?;
     Ok(OperationReport {

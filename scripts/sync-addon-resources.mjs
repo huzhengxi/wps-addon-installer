@@ -73,7 +73,10 @@ const manifest = {
   wps: {
     bundleId: "com.kingsoft.wpsoffice.mac",
     applicationPath: "/Applications/wpsoffice.app",
-    jsAddonsRelativeToHome: "Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons"
+    jsAddonsRelativeToHome: "Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons",
+    windows: {
+      jsAddonsRelativeToHome: "AppData/Roaming/kingsoft/wps/jsaddons"
+    }
   }
 };
 await writeFile(manifestTarget, `${JSON.stringify(manifest, null, 2)}\n`);

@@ -64,20 +64,31 @@ npm run package:linux    # Linux：AppImage、DEB
 
 安装包需要在对应的操作系统上构建，不能在一台电脑上直接生成全部平台的原生包。可在 GitHub Actions 的 **Package desktop app** 工作流中选择 `all` 一次构建 macOS、Windows、Linux，或选择单一平台；产物会作为 workflow artifacts 上传。
 
-> Windows 和 Linux 的安装器目前仅保证可以构建。应用的 WPS 探测、安装、卸载和重启逻辑仍只支持 macOS，运行时会显示“不支持的系统”；在实现对应的 WPS 路径和进程控制前，不应对外发布这两个平台的包。
+> Windows 安装器已支持 WPS 探测、安装、卸载和重启；Linux 运行时仍会显示“不支持的系统”，不应对外发布 Linux 包。
+
+## Windows 支持说明
+
+- 加载项目录：`%APPDATA%\kingsoft\wps\jsaddons`（即 `%USERPROFILE%\AppData\Roaming\kingsoft\wps\jsaddons`），与官方 `wpsjs publish` 部署位置一致；
+- `publish.xml` 格式与 macOS 相同，安装流程、回滚和状态判定逻辑完全复用；
+- WPS 安装位置通过注册表 `HKCU/HKLM\Software\Kingsoft\Office\6.0\Common` 的 `InstallRoot` 识别，未注册时回退扫描 `%LOCALAPPDATA%\Kingsoft\WPS Office\<版本>\office6`；
+- 版本号取自 `office6` 上级目录名（如 `12.1.0.19382`），最低要求版本为 `11.8.2.8808`（发布流支持的企业版最低版本），与 macOS 的 `12.1.26055` 各自独立；
+- 重启 WPS 时结束 `wpsoffice.exe`、`wps.exe`、`et.exe`、`wpp.exe` 进程，并从原 `office6` 目录重新拉起启动器；
+- 覆盖替换基于 rename 的暂存提交在 NTFS 上同样成立，但如遇杀毒软件占用文件句柄可能导致提交失败，重试即可。
+
+真实 Windows 环境（MSI/NSIS 安装包、干净用户目录）的验收仍见 [TODO.md](./TODO.md) P0。
 
 
 
 ## 第一版范围
 
-- 平台：macOS；
-- WPS：`com.kingsoft.wpsoffice.mac`；
+- 平台：macOS、Windows；
+- WPS：`com.kingsoft.wpsoffice.mac`（macOS）/ 注册表 `Software\Kingsoft\Office\6.0\Common`（Windows）；
 - 加载项：`date-picker`，类型 `et`；
 - 支持离线安装、卸载、安装状态检查、WPS 重启；
 - 应用内携带 `wps-addon-build` 和 `wps-addon-publish`；
 - 不依赖当前源码工程、Node.js、Homebrew 或系统 `7z`。
 
-Windows、Linux、在线升级、多加载项管理和应用自动更新暂不纳入第一版。
+Linux、在线升级、多加载项管理和应用自动更新暂不纳入第一版。
 
 ## 关键发现
 

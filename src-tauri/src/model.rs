@@ -20,6 +20,7 @@ pub struct EnvironmentReport {
     pub wps_running: bool,
     pub wps_version: Option<String>,
     pub wps_version_supported: bool,
+    pub wps_minimum_version: String,
     pub js_addons_path: String,
     pub payload_valid: bool,
     pub addon_directory_exists: bool,
