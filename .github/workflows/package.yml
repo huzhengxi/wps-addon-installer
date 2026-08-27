@@ -40,7 +40,7 @@ jobs:
         id: asset
         shell: bash
         run: |
-          zip=$(find src-tauri/target -name "wps-addon-installer_*_arm64.zip" -type f | head -n1)
+          zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_arm64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS arm64 zip not found"; exit 1; }
           echo "path=$zip" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v6
@@ -75,7 +75,7 @@ jobs:
         id: asset
         shell: bash
         run: |
-          zip=$(find src-tauri/target -name "wps-addon-installer_*_x64.zip" -type f | head -n1)
+          zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_x64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS x64 zip not found"; exit 1; }
           echo "path=$zip" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v6
@@ -116,7 +116,7 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *.exe -Recurse | Select-Object -First 1
           if (-not $installer) { Write-Error "NSIS installer not found"; exit 1 }
-          $zip = "wps-addon-installer_${{ steps.ver.outputs.version }}_x64.zip"
+          $zip = "wps-addon-installer_windows_${{ steps.ver.outputs.version }}_x64.zip"
           Compress-Archive -Path $installer.FullName -DestinationPath $zip
           Add-Content -Path $env:GITHUB_OUTPUT -Value "path=$zip"
       - uses: actions/upload-artifact@v6
@@ -160,7 +160,7 @@ jobs:
         run: |
           appimage=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" -type f | head -n1)
           [ -n "$appimage" ] || { echo "AppImage not found"; exit 1; }
-          zip="wps-addon-installer_${{ steps.ver.outputs.version }}_x64.zip"
+          zip="wps-addon-installer_linux_${{ steps.ver.outputs.version }}_x64.zip"
           zip -j "$zip" "$appimage"
           echo "path=$zip" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v6
