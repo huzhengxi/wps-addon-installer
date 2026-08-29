@@ -56,6 +56,29 @@ export interface AppUpdateProgress {
   message: string;
 }
 
+export interface ControlSource {
+  id: string;
+  name: string;
+  indexUrl: string;
+  enabled: boolean;
+  defaultSource: boolean;
+  lastSyncedAt: string | null;
+}
+
+export interface SourceTestReport {
+  reachable: boolean;
+  addonCount: number | null;
+  message: string;
+}
+
+export interface PermissionReport {
+  wpsFound: boolean;
+  wpsPathReadable: boolean;
+  jsaddonsWritable: boolean;
+  jsaddonsPath: string;
+  guidance: string;
+}
+
 export const inspectEnvironment = () => invoke<EnvironmentReport>("inspect_environment");
 export const installAddon = () => invoke<OperationReport>("install_addon");
 export const uninstallAddon = () => invoke<OperationReport>("uninstall_addon");
@@ -65,3 +88,11 @@ export const checkAppUpdate = () => invoke<AppUpdateReport>("check_app_update");
 export const installAppUpdateAndRestart = () => invoke<boolean>("install_app_update_and_restart");
 export const listenToAppUpdateProgress = (handler: (progress: AppUpdateProgress) => void): Promise<UnlistenFn> =>
   listen<AppUpdateProgress>("app-update-progress", (event) => handler(event.payload));
+export const listControlSources = () => invoke<ControlSource[]>("list_control_sources");
+export const addControlSource = (input: Pick<ControlSource, "name" | "indexUrl">) =>
+  invoke<ControlSource>("add_control_source", { input: { name: input.name, indexUrl: input.indexUrl } });
+export const setControlSourceEnabled = (id: string, enabled: boolean) =>
+  invoke<ControlSource[]>("set_control_source_enabled", { id, enabled });
+export const testControlSource = (id: string) => invoke<SourceTestReport>("test_control_source", { id });
+export const inspectPermissions = () => invoke<PermissionReport>("inspect_permissions");
+export const openPermissionSettings = () => invoke<void>("open_permission_settings");

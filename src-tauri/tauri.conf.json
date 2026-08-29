@@ -14,9 +14,11 @@
       {
         "label": "main",
         "title": "WPS 加载项安装器",
-        "width": 620,
-        "height": 620,
-        "resizable": false,
+        "width": 920,
+        "height": 680,
+        "minWidth": 760,
+        "minHeight": 600,
+        "resizable": true,
         "fullscreen": false,
         "devtools": false
       }

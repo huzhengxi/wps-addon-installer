@@ -1,4 +1,40 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ControlSource {
+    pub id: String,
+    pub name: String,
+    pub index_url: String,
+    pub enabled: bool,
+    pub default_source: bool,
+    pub last_synced_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddControlSourceInput {
+    pub name: String,
+    pub index_url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceTestReport {
+    pub reachable: bool,
+    pub addon_count: Option<usize>,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionReport {
+    pub wps_found: bool,
+    pub wps_path_readable: bool,
+    pub jsaddons_writable: bool,
+    pub jsaddons_path: String,
+    pub guidance: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]

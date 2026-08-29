@@ -1,0 +1,231 @@
+use std::{
+    fs,
+    process::Command,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+use serde::Deserialize;
+use tauri::{AppHandle, Manager};
+use thiserror::Error;
+
+use crate::{
+    installer,
+    model::{AddControlSourceInput, ControlSource, PermissionReport, SourceTestReport},
+};
+
+const SOURCE_FILE: &str = "control-sources.json";
+const OFFICIAL_SOURCE_ID: &str = "official";
+const OFFICIAL_SOURCE_URL: &str = "https://huzhengxi.github.io/wps-addon-catalog/v1/index.json";
+
+#[derive(Debug, Error)]
+pub enum CatalogError {
+    #[error("控件源地址必须是有效的 HTTPS URL。")]
+    InvalidUrl,
+    #[error("控件源名称不能为空，且最多 80 个字符。")]
+    InvalidName,
+    #[error("未找到指定控件源。")]
+    SourceNotFound,
+    #[error("默认控件源不能删除。")]
+    DefaultSourceProtected,
+    #[error("无法读取控件源配置：{0}")]
+    Storage(#[from] std::io::Error),
+    #[error("控件源配置格式无效：{0}")]
+    StorageFormat(#[from] serde_json::Error),
+    #[error("无法连接控件源：{0}")]
+    Network(#[from] reqwest::Error),
+    #[error("控件源索引格式无效：{0}")]
+    Index(String),
+    #[error("环境检查失败：{0}")]
+    Environment(String),
+    #[error("无法打开系统权限设置：{0}")]
+    Settings(std::io::Error),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceIndex {
+    schema_version: u32,
+    #[serde(default)]
+    addons: Vec<serde_json::Value>,
+}
+
+fn default_sources() -> Vec<ControlSource> {
+    vec![ControlSource {
+        id: OFFICIAL_SOURCE_ID.into(),
+        name: "官方控件源".into(),
+        index_url: OFFICIAL_SOURCE_URL.into(),
+        enabled: true,
+        default_source: true,
+        last_synced_at: None,
+    }]
+}
+
+fn storage_path(app: &AppHandle) -> Result<std::path::PathBuf, CatalogError> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| CatalogError::Environment(error.to_string()))?;
+    fs::create_dir_all(&directory)?;
+    Ok(directory.join(SOURCE_FILE))
+}
+
+fn load_sources(app: &AppHandle) -> Result<Vec<ControlSource>, CatalogError> {
+    let path = storage_path(app)?;
+    match fs::read_to_string(&path) {
+        Ok(content) => {
+            let sources: Vec<ControlSource> = serde_json::from_str(&content)?;
+            if sources.iter().any(|source| source.id == OFFICIAL_SOURCE_ID && source.default_source) {
+                Ok(sources)
+            } else {
+                let mut sources = sources;
+                sources.insert(0, default_sources().remove(0));
+                save_sources(app, &sources)?;
+                Ok(sources)
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let sources = default_sources();
+            save_sources(app, &sources)?;
+            Ok(sources)
+        }
+        Err(error) => Err(CatalogError::Storage(error)),
+    }
+}
+
+fn save_sources(app: &AppHandle, sources: &[ControlSource]) -> Result<(), CatalogError> {
+    let path = storage_path(app)?;
+    let temporary = path.with_extension("json.tmp");
+    let text = serde_json::to_string_pretty(sources)?;
+    fs::write(&temporary, text)?;
+    fs::rename(temporary, path)?;
+    Ok(())
+}
+
+fn validate_url(value: &str) -> Result<(), CatalogError> {
+    let value = value.trim();
+    if value.len() > 2048 || !value.starts_with("https://") || value.chars().any(char::is_whitespace) {
+        return Err(CatalogError::InvalidUrl);
+    }
+    Ok(())
+}
+
+fn source_by_id<'a>(sources: &'a [ControlSource], id: &str) -> Result<&'a ControlSource, CatalogError> {
+    sources.iter().find(|source| source.id == id).ok_or(CatalogError::SourceNotFound)
+}
+
+fn fetch_index(url: &str) -> Result<SourceIndex, CatalogError> {
+    validate_url(url)?;
+    let response = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(12))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()?
+        .get(url)
+        .send()?
+        .error_for_status()?;
+    let index: SourceIndex = response.json()?;
+    if index.schema_version != 1 {
+        return Err(CatalogError::Index("仅支持 schemaVersion: 1。".into()));
+    }
+    if index.addons.len() > 500 {
+        return Err(CatalogError::Index("单个控件源最多包含 500 个插件。".into()));
+    }
+    Ok(index)
+}
+
+pub fn list_sources(app: &AppHandle) -> Result<Vec<ControlSource>, CatalogError> {
+    load_sources(app)
+}
+
+pub fn add_source(app: &AppHandle, input: AddControlSourceInput) -> Result<ControlSource, CatalogError> {
+    let name = input.name.trim();
+    if name.is_empty() || name.chars().count() > 80 {
+        return Err(CatalogError::InvalidName);
+    }
+    validate_url(&input.index_url)?;
+    let mut sources = load_sources(app)?;
+    if sources.iter().any(|source| source.index_url == input.index_url.trim()) {
+        return Err(CatalogError::Index("该控件源已存在。".into()));
+    }
+    let source = ControlSource {
+        id: format!(
+            "custom-{}",
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
+        ),
+        name: name.to_owned(),
+        index_url: input.index_url.trim().to_owned(),
+        enabled: false,
+        default_source: false,
+        last_synced_at: None,
+    };
+    sources.push(source.clone());
+    save_sources(app, &sources)?;
+    Ok(source)
+}
+
+pub fn set_source_enabled(app: &AppHandle, id: &str, enabled: bool) -> Result<Vec<ControlSource>, CatalogError> {
+    let mut sources = load_sources(app)?;
+    let source = sources.iter_mut().find(|source| source.id == id).ok_or(CatalogError::SourceNotFound)?;
+    source.enabled = enabled;
+    save_sources(app, &sources)?;
+    Ok(sources)
+}
+
+pub fn test_source(app: &AppHandle, id: &str) -> Result<SourceTestReport, CatalogError> {
+    let mut sources = load_sources(app)?;
+    let source = source_by_id(&sources, id)?;
+    let index = fetch_index(&source.index_url)?;
+    if let Some(source) = sources.iter_mut().find(|source| source.id == id) {
+        source.last_synced_at = Some("刚刚验证".into());
+    }
+    save_sources(app, &sources)?;
+    Ok(SourceTestReport {
+        reachable: true,
+        addon_count: Some(index.addons.len()),
+        message: "连接成功，索引格式有效。".into(),
+    })
+}
+
+pub fn inspect_permissions(app: &AppHandle) -> Result<PermissionReport, CatalogError> {
+    let environment = installer::inspect(app).map_err(|error| CatalogError::Environment(error.to_string()))?;
+    let jsaddons_path = environment.js_addons_path;
+    let path = std::path::Path::new(&jsaddons_path);
+    let jsaddons_writable = path.exists() && path.is_dir() && fs::read_dir(path).is_ok();
+    let guidance = if jsaddons_writable {
+        "WPS 加载项目录可读取；安装时将再次验证写入权限。".into()
+    } else if cfg!(target_os = "macos") {
+        "请在系统设置 → 隐私与安全性 → 文件与文件夹中允许访问；若仍失败，请在完全磁盘访问权限中加入本应用。".into()
+    } else {
+        "请检查 Windows 文件系统访问或受控文件夹访问设置，然后重新检测。".into()
+    };
+    Ok(PermissionReport {
+        wps_found: environment.wps_installed,
+        wps_path_readable: environment.wps_version.is_some(),
+        jsaddons_writable,
+        jsaddons_path,
+        guidance,
+    })
+}
+
+pub fn open_permission_settings() -> Result<(), CatalogError> {
+    #[cfg(target_os = "macos")]
+    let result = Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+        .spawn();
+    #[cfg(target_os = "windows")]
+    let result = Command::new("cmd")
+        .args(["/C", "start", "", "ms-settings:privacy-broadfilesystemaccess"])
+        .spawn();
+    result.map(|_| ()).map_err(CatalogError::Settings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_url_must_be_https_without_whitespace() {
+        assert!(validate_url("https://example.com/index.json").is_ok());
+        assert!(validate_url("http://example.com/index.json").is_err());
+        assert!(validate_url("https://example.com/a b").is_err());
+    }
+}

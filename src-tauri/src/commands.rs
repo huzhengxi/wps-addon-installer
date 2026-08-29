@@ -1,13 +1,54 @@
 use tauri::AppHandle;
 
 use crate::{
+    catalog,
     installer,
-    model::{AppUpdateReport, EnvironmentReport, OperationReport},
+    model::{
+        AddControlSourceInput, AppUpdateReport, ControlSource, EnvironmentReport, OperationReport,
+        PermissionReport, SourceTestReport,
+    },
     updater,
 };
 
 fn command_error(error: installer::InstallerError) -> String {
     error.to_string()
+}
+
+#[tauri::command]
+pub fn list_control_sources(app: AppHandle) -> Result<Vec<ControlSource>, String> {
+    catalog::list_sources(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn add_control_source(
+    app: AppHandle,
+    input: AddControlSourceInput,
+) -> Result<ControlSource, String> {
+    catalog::add_source(&app, input).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_control_source_enabled(
+    app: AppHandle,
+    id: String,
+    enabled: bool,
+) -> Result<Vec<ControlSource>, String> {
+    catalog::set_source_enabled(&app, &id, enabled).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn test_control_source(app: AppHandle, id: String) -> Result<SourceTestReport, String> {
+    catalog::test_source(&app, &id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inspect_permissions(app: AppHandle) -> Result<PermissionReport, String> {
+    catalog::inspect_permissions(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn open_permission_settings() -> Result<(), String> {
+    catalog::open_permission_settings().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
