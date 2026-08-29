@@ -9,7 +9,6 @@ import {
   DotsThreeVerticalIcon,
   DownloadSimpleIcon,
   FileTextIcon,
-  GearSixIcon,
   InfoIcon,
   LinkIcon,
   LockKeyIcon,
@@ -25,8 +24,10 @@ import {
 } from "@phosphor-icons/react";
 import {
   addControlSource,
+  checkAppUpdate,
   inspectPermissions,
   installCatalogAddon,
+  installAppUpdateAndRestart,
   listInstalledAddons,
   listCatalogAddons,
   listControlSources,
@@ -35,6 +36,7 @@ import {
   testControlSource,
   uninstallSelectedAddon,
   type ControlSource,
+  type AppUpdateInfo,
   type PermissionReport
 } from "./api";
 
@@ -98,13 +100,17 @@ export function App() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [notice, setNotice] = useState<Notice>(null);
-  const [modal, setModal] = useState<"source" | "uninstall" | null>(null);
+  const [modal, setModal] = useState<"source" | "uninstall" | "update" | null>(null);
   const [sourceDraft, setSourceDraft] = useState({ name: "", url: "" });
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [permissionReport, setPermissionReport] = useState<PermissionReport | null>(null);
+  const [update, setUpdate] = useState<AppUpdateInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
 
   const installed = addons.filter((addon) => addon.installed);
   const available = useMemo(() => addons.filter((addon) => !addon.installed && addon.name.includes(query.trim())), [addons, query]);
+  const permissionNeedsAttention = permissionReport !== null && (!permissionReport.wpsFound || !permissionReport.wpsPathReadable || !permissionReport.jsaddonsWritable);
   const notify = (tone: NonNullable<Notice>["tone"], text: string) => setNotice({ tone, text });
 
   useEffect(() => {
@@ -140,7 +146,38 @@ export function App() {
       setPermissionReport(report);
       setPermissionGranted(report.jsaddonsWritable);
     }).catch(() => undefined);
+    void checkAppUpdate().then((report) => {
+      if (report.update) {
+        setUpdate(report.update);
+        setModal("update");
+      }
+    }).catch(() => undefined);
   }, []);
+
+  const checkForUpdate = () => {
+    if (isCheckingUpdate) return;
+    setIsCheckingUpdate(true);
+    void checkAppUpdate()
+      .then((report) => {
+        if (report.update) {
+          setUpdate(report.update);
+          setModal("update");
+        } else {
+          notify("success", "当前已是最新版本。");
+        }
+      })
+      .catch(() => notify("warning", "暂时无法检查更新，请稍后重试。"))
+      .finally(() => setIsCheckingUpdate(false));
+  };
+
+  const installUpdate = () => {
+    setIsInstallingUpdate(true);
+    void installAppUpdateAndRestart()
+      .catch(() => {
+        setIsInstallingUpdate(false);
+        notify("error", "更新下载失败，请稍后重试。");
+      });
+  };
 
   const install = (id: string) => {
     const addon = addons.find((item) => item.id === id);
@@ -194,8 +231,8 @@ export function App() {
   return <main className="grid h-full grid-cols-[216px_minmax(0,1fr)] bg-[#f5f6fa] text-slate-900 dark:bg-[#11151e] dark:text-slate-100">
     <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-[#151b26]">
       <div className="mb-10 flex items-center gap-3 px-2"><div className="grid size-11 place-items-center rounded-xl bg-brand-600 text-xl font-black text-white shadow-lg shadow-brand-600/25">日</div><div><p className="text-[11px] font-bold tracking-[0.12em] text-brand-600">WPS 表格加载项</p><h1 className="text-base font-bold">插件管理器</h1></div></div>
-      <nav aria-label="主导航" className="grid gap-1">{navItems.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setPage(id)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${page === id ? "bg-brand-100 text-brand-700 dark:bg-brand-600/25 dark:text-brand-100" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}><Icon size={21} weight={page === id ? "fill" : "regular"} />{label}</button>)}</nav>
-      <div className="mt-auto border-t border-slate-200 px-2 pt-5 dark:border-slate-800"><p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"><span className="size-2 rounded-full bg-emerald-500" />WPS 已连接</p><p className="mt-2 text-xs text-slate-400">安装器 v0.1.0</p></div>
+      <nav aria-label="主导航" className="grid gap-1">{navItems.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setPage(id)} className={`relative flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${page === id ? "bg-brand-100 text-brand-700 dark:bg-brand-600/25 dark:text-brand-100" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}><Icon size={21} weight={page === id ? "fill" : "regular"} />{label}{id === "permissions" && permissionNeedsAttention && <span aria-label="权限需要处理" className="absolute right-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#151b26]" />}</button>)}</nav>
+      <div className="mt-auto border-t border-slate-200 px-2 pt-5 dark:border-slate-800"><p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"><span className="size-2 rounded-full bg-emerald-500" />WPS 已连接</p><p className="mt-2 text-xs text-slate-400">安装器 v0.1.0</p><button type="button" onClick={checkForUpdate} disabled={isCheckingUpdate} className="mt-4 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-brand-700 disabled:cursor-wait disabled:opacity-70 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-brand-200"><ArrowClockwiseIcon size={16} className={isCheckingUpdate ? "animate-spin" : ""} />{isCheckingUpdate ? "正在检查更新…" : "检查应用更新"}</button></div>
     </aside>
 
     <section className="min-w-0 overflow-auto p-8">
@@ -208,6 +245,7 @@ export function App() {
 
     {modal === "source" && <Modal title="添加控件源" onClose={() => setModal(null)}><p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">只添加你信任的 HTTPS 索引地址。保存后默认停用，需要测试连接后再启用。</p><label className="mt-5 block text-sm font-semibold">名称<input value={sourceDraft.name} onChange={(event) => setSourceDraft({ ...sourceDraft, name: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none dark:border-slate-700 dark:bg-slate-950" placeholder="例如：团队内部控件源" /></label><label className="mt-4 block text-sm font-semibold">索引 URL<input value={sourceDraft.url} onChange={(event) => setSourceDraft({ ...sourceDraft, url: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none dark:border-slate-700 dark:bg-slate-950" placeholder="https://example.com/v1/index.json" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">取消</button><button type="button" onClick={addSource} className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700">保存为停用</button></div></Modal>}
     {modal === "uninstall" && <Modal title="卸载所选插件？" onClose={() => setModal(null)}><p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">将移除 {selected.length} 个插件文件，并定向删除对应的 WPS 配置项。其他插件不会受到影响。</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">取消</button><button type="button" onClick={uninstallSelected} className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-700">卸载</button></div></Modal>}
+    {modal === "update" && update && <Modal title="发现新版本" onClose={() => !isInstallingUpdate && setModal(null)}><div className="mt-3 rounded-xl bg-brand-50 p-4 dark:bg-brand-600/10"><p className="text-sm font-bold text-brand-700 dark:text-brand-200">安装器 {update.version} 已准备好</p>{update.notes && <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{update.notes}</p>}</div><p className="mt-4 text-sm text-slate-500 dark:text-slate-400">更新完成后应用会自动重新打开。</p><div className="mt-6 flex justify-end gap-3"><button type="button" disabled={isInstallingUpdate} onClick={() => setModal(null)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800">稍后</button><button type="button" disabled={isInstallingUpdate} onClick={installUpdate} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-70"><ArrowClockwiseIcon size={17} className={isInstallingUpdate ? "animate-spin" : ""} />{isInstallingUpdate ? "正在更新…" : "立即更新"}</button></div></Modal>}
   </main>;
 }
 
@@ -237,5 +275,5 @@ function PermissionsPage({ report, granted, onApply, onOpenSettings }: { report:
 
 function HelpPage({ notify }: { notify: (tone: NonNullable<Notice>["tone"], text: string) => void }) {
   const guides = ["快速开始", "安装、更新与修复插件", "查看和卸载插件", "添加自定义控件源", "macOS 权限恢复", "Windows 权限恢复", "常见错误与诊断", "发布控件包（维护者）"];
-  return <><header><p className="text-xs font-bold tracking-[0.12em] text-brand-600">离线帮助</p><h2 className="mt-1 text-3xl font-bold tracking-tight">帮助</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">按任务查找操作说明和故障恢复方法。</p></header><label className="relative mt-7 block max-w-xl"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input placeholder="搜索用户手册" className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-3 pl-10 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{guides.map((guide) => <button type="button" key={guide} className="flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left text-sm font-semibold transition last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"><ClipboardTextIcon className="text-brand-600" size={20} />{guide}</button>)}</div><div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={() => notify("success", "诊断信息已复制。正式版本会自动脱敏用户目录与令牌。")} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900"><CopyIcon size={18} />复制诊断信息</button><button type="button" onClick={() => notify("warning", "检查更新功能将复用现有的 Tauri Updater。")} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900"><GearSixIcon size={18} />检查应用更新</button></div></>;
+  return <><header><p className="text-xs font-bold tracking-[0.12em] text-brand-600">离线帮助</p><h2 className="mt-1 text-3xl font-bold tracking-tight">帮助</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">按任务查找操作说明和故障恢复方法。</p></header><label className="relative mt-7 block max-w-xl"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input placeholder="搜索用户手册" className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-3 pl-10 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{guides.map((guide) => <button type="button" key={guide} className="flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left text-sm font-semibold transition last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"><ClipboardTextIcon className="text-brand-600" size={20} />{guide}</button>)}</div><div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={() => notify("success", "诊断信息已复制。正式版本会自动脱敏用户目录与令牌。")} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold hover:border-brand-200 dark:border-slate-700 dark:bg-slate-900"><CopyIcon size={18} />复制诊断信息</button></div></>;
 }
