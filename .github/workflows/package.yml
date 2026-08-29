@@ -175,7 +175,6 @@ jobs:
         run: ls -la release-assets
       - name: Generate updater manifest
         shell: bash
-        run: node scripts/generate-updater-manifest.mjs release-assets "$GITHUB_REF_NAME" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" release-assets/latest.json
         run: node scripts/generate-updater-manifest.mjs release-assets "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" release-assets/latest.json
       - name: Upload GitHub Release
         env:
