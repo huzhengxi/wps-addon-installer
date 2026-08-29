@@ -1,120 +1,135 @@
-# WPS 加载项安装器
+# WPS 插件管理器（WPS Add-on Manager）
 
-这是 `date-picker` WPS 加载项的 macOS 桌面安装器规划工程。目标是使用 Tauri v2 提供可视化的安装、卸载和状态检查，并把加载项构建产物随应用一同离线分发。
+> 面向 **WPS Office 表格（ET）加载项** 的跨平台桌面插件管理器：从可信控件源发现、校验、安装与卸载插件，并提供 WPS 目录权限恢复和应用更新。
 
-当前阶段只完成了：
+**关键词：** WPS 插件管理器、WPS 加载项安装器、WPS JS 加载项、WPS ET 插件、WPS 表格插件、WPS Office add-on manager、WPS Office plugin installer、WPS 插件源、WPS 插件卸载、日期选择器。
 
-- 项目整体架构；
-- `install.sh` / `uninstall.sh` 行为契约；
-- 分阶段 To-do 和验收标准；
-- 当前 `wps-addon-build`、`wps-addon-publish` 的资源快照；
-- 资源清单与 SHA-256 校验值。
+## 为什么使用它
 
-已实现首版前端、Rust 安装/卸载命令、资源校验、同步脚本和单元测试；真实 WPS 验收、双架构 DMG、签名和公证仍需在目标机器完成。
+WPS JS 加载项通常需要手动解压到 `jsaddons` 目录并修改 `publish.xml`。本项目将这个流程集中到一个 React + Tauri 桌面应用中：
 
-安装前会读取 `/Applications/wpsoffice.app/Contents/Info.plist` 中的 `CFBundleShortVersionString`。WPS 版本必须严格大于等于 `12.1.26055`；版本相同、较低或无法读取时，安装会被阻止。
+- 从 HTTPS 控件源读取插件目录，支持默认源和自定义源；
+- 从版本化下载地址获取插件包，校验声明大小与 SHA-256 后才安装；
+- 扫描 WPS 已安装插件，并可选择一个或多个插件卸载；
+- 仅删除所选插件目录和对应的 `publish.xml` 配置，拒绝符号链接和越界路径；
+- 检查 WPS 安装状态与加载项目录权限，拒绝授权后可打开系统设置并重新检测；
+- 自动适配系统深色/浅色模式，并在启动时静默检查安装器更新。
 
-## 本地运行
+当前首版支持 `type: "et"` 的 WPS 表格加载项，目标平台为 macOS 和 Windows。
+
+## 界面模块
+
+| 模块 | 能做什么 |
+| --- | --- |
+| 插件 | 查看已安装与可安装插件，搜索、安装、选择并卸载插件 |
+| 控件源 | 添加、测试、启用或停用 HTTPS 插件目录源 |
+| 权限 | 查看 WPS、安装路径与加载项目录的访问状态；恢复被拒绝的权限 |
+| 帮助 | 查看操作手册、故障排查与诊断入口 |
+
+当权限校验失败时，左侧“权限”导航会显示红色角标；手动检查应用更新时会展示加载状态。
+
+## 控件源格式
+
+控件源是一个静态 JSON 文件，而非文件夹或脚本 URL。安装器只接受 `https://` 索引和下载链接。最小示例：
+
+```json
+{
+  "schemaVersion": 1,
+  "source": { "id": "team", "name": "团队插件源" },
+  "addons": [{
+    "id": "date-picker",
+    "name": "日期选择器",
+    "type": "et",
+    "version": "1.0.2",
+    "description": "在 WPS 表格中选择并填写日期。",
+    "platforms": ["macos", "windows"],
+    "downloadUrl": "https://example.com/releases/date-picker-1.0.2.7z",
+    "sha256": "64 位十六进制 SHA-256",
+    "size": 123456
+  }]
+}
+```
+
+推荐使用 **GitHub Pages 托管索引**、**GitHub Releases 托管版本化 `.7z` 插件包**。不要使用 `latest/download`：它会变化，无法保证版本与 SHA-256 的对应关系。
+
+完整的日期选择器打包、上传和真机测试流程见 [自定义控件源手册](docs/user-guide/custom-sources.md)。
+
+## 使用应用
+
+1. 启动应用后，先查看“权限”。如果有红色角标，按页面引导完成系统授权并点击“重新检测”。
+2. 在“控件源”测试并启用默认源或自定义源。
+3. 在“插件”页选择插件并安装。安装器会重新读取源、下载插件包、校验 SHA-256、部署文件，再尝试重启 WPS。
+4. 卸载时勾选已安装插件并确认；其他插件不会被删除。
+
+详细说明：
+
+- [快速开始](docs/user-guide/quick-start.md)
+- [安装、查看与卸载插件](docs/user-guide/manage-addons.md)
+- [添加与发布自定义控件源](docs/user-guide/custom-sources.md)
+- [macOS / Windows 权限恢复](docs/user-guide/permissions.md)
+- [常见问题](docs/user-guide/troubleshooting.md)
+
+## 开发
+
+### 环境
+
+- Node.js `20.19+` 或 `22.12+`
+- Rust 工具链（项目使用 Tauri v2）
+- macOS 或 Windows；Linux 可运行前端但不支持 WPS 安装操作
+
+### 本地启动
 
 ```bash
-cd /Users/jason/src/liqiong/wps-addon-installer
+git clone https://github.com/huzhengxi/wps-addon-manager.git
+cd wps-addon-manager
 npm install
 npm run tauri dev
 ```
 
-首次构建需要 Rust `1.88.0`（工程已通过 `rust-toolchain.toml` 固定）和 Node.js `20.19.0+` 或 `22.12.0+`。资源更新使用：
+### 验证与打包
 
 ```bash
-npm run sync:addon
+npm run build
+cd src-tauri && cargo check
 ```
-
-
-
-## 打包
-
-现有 DMG 打包方式保持不变：
 
 ```bash
 npm run tauri -- build
 ```
 
-也可以生成无需安装、解压后直接运行的 `.app` ZIP 包：
+分别打包目标平台：
 
 ```bash
-npm run package:zip
+npm run package:macos
+npm run package:windows
 ```
 
-ZIP 默认输出到 `src-tauri/target/release/bundle/macos/`。脚本使用 macOS 自带的 `ditto` 压缩，以保留 `.app` 的执行权限、扩展属性和签名信息。指定架构时可使用：
+安装器使用 Tauri Updater 检查自身更新；更新安装器不会静默更新已安装插件。
 
-```bash
-npm run package:zip -- --target aarch64-apple-darwin
-npm run package:zip -- --target x86_64-apple-darwin
-npm run package:zip -- --target universal-apple-darwin
+## 安全原则
+
+- 仅允许 HTTPS 控件源与插件下载链接；
+- 索引条目必须包含文件大小和 SHA-256；
+- 下载后校验大小与 SHA-256，失败不安装；
+- 解压包必须有唯一、安全的顶层目录，且不允许符号链接；
+- 删除操作仅限 WPS `jsaddons` 目录内已验证的直接子目录；
+- 控件源损坏时隔离为提示，不阻塞其他已启用源。
+
+## 项目结构
+
+```text
+src/                 React + Tailwind CSS 界面
+src-tauri/           Tauri / Rust 命令、控件源、安装与权限逻辑
+docs/user-guide/     面向终端用户的手册
+docs/ui-design-v2.md 信息架构、交互与控件源契约
 ```
 
-未签名或未公证的应用仍可能触发 macOS Gatekeeper 提示；正式对外分发时，ZIP 内的 `.app` 与 DMG 版本一样需要完成 Developer ID 签名和公证。
+## 相关文档
 
-各平台也可分别构建对应的安装包：
+- [待办与验收清单](TODO.md)
+- [UI 与控件源设计](docs/ui-design-v2.md)
+- [用户手册目录](docs/user-guide/index.md)
 
-```bash
-npm run package:macos    # macOS：DMG
-npm run package:windows  # Windows：MSI、NSIS 安装程序
-npm run package:linux    # Linux：AppImage、DEB
-```
+## 许可证与反馈
 
-安装包需要在对应的操作系统上构建，不能在一台电脑上直接生成全部平台的原生包。可在 GitHub Actions 的 **Package desktop app** 工作流中选择 `all` 一次构建 macOS、Windows、Linux，或选择单一平台；产物会作为 workflow artifacts 上传。
-
-> Windows 安装器已支持 WPS 探测、安装、卸载和重启；Linux 运行时仍会显示“不支持的系统”，不应对外发布 Linux 包。
-
-## Windows 支持说明
-
-- 加载项目录：`%APPDATA%\kingsoft\wps\jsaddons`（即 `%USERPROFILE%\AppData\Roaming\kingsoft\wps\jsaddons`），与官方 `wpsjs publish` 部署位置一致；
-- `publish.xml` 格式与 macOS 相同，安装流程、回滚和状态判定逻辑完全复用；
-- WPS 安装位置通过注册表 `HKCU/HKLM\Software\Kingsoft\Office\6.0\Common` 的 `InstallRoot` 识别，未注册时回退扫描 `%LOCALAPPDATA%\Kingsoft\WPS Office\<版本>\office6`；
-- 版本号取自 `office6` 上级目录名（如 `12.1.0.19382`），最低要求版本为 `11.8.2.8808`（发布流支持的企业版最低版本），与 macOS 的 `12.1.26055` 各自独立；
-- 重启 WPS 时结束 `wpsoffice.exe`、`wps.exe`、`et.exe`、`wpp.exe` 进程，并从原 `office6` 目录重新拉起启动器；
-- 覆盖替换基于 rename 的暂存提交在 NTFS 上同样成立，但如遇杀毒软件占用文件句柄可能导致提交失败，重试即可。
-
-真实 Windows 环境（MSI/NSIS 安装包、干净用户目录）的验收仍见 [TODO.md](./TODO.md) P0。
-
-
-
-## 第一版范围
-
-- 平台：macOS、Windows；
-- WPS：`com.kingsoft.wpsoffice.mac`（macOS）/ 注册表 `Software\Kingsoft\Office\6.0\Common`（Windows）；
-- 加载项：`date-picker`，类型 `et`；
-- 支持离线安装、卸载、安装状态检查、WPS 重启；
-- 应用内携带 `wps-addon-build` 和 `wps-addon-publish`；
-- 不依赖当前源码工程、Node.js、Homebrew 或系统 `7z`。
-
- Linux、在线加载项升级和多加载项管理暂不纳入第一版；应用自动更新已通过 Tauri Updater + GitHub Releases 实现。
-## 软件更新
-
-应用内置 Tauri Updater，启动后会自动检查 GitHub Release 上的 `latest.json`。更新包使用 minisign 签名验证，公钥固定在 [tauri.conf.json](./src-tauri/tauri.conf.json) 中，私钥只存放在 GitHub Secrets。
-
-用户确认后才会下载并安装更新；macOS 替换 `.app` 后重启，Windows 运行 NSIS 安装器后重启。更新只更新安装器本身，不会自动修改已部署到 WPS 的加载项；若内置加载项版本更新，更新后通过“安装 / 修复”重新部署。
-
-首个包含更新器的版本发布前，老版本无法自动更新，需要手动下载一次。macOS 未完成 Apple Developer ID 签名与公证前，首次安装仍可能有 Gatekeeper 提示，但不影响检查和安装更新。
-
-## 关键发现
-
-当前构建包的根目录是 `date-picker_1.0.1`，`package.json` 也是 `1.0.1`，但现有 `install.sh` 与 `uninstall.sh` 仍写死为 `1.0.0`。直接运行旧安装脚本会因为找不到 `date-picker_1.0.0` 而失败。
-
-新应用以 [addon-manifest.json](./src-tauri/resources/addon/addon-manifest.json) 作为唯一版本来源，当前确定为 `1.0.1`；实现时不得再在 Rust、TypeScript 或配置文件中重复硬编码版本。
-
-## 文档入口
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md)：模块、数据流、目录和技术决策；
-- [TODO.md](./TODO.md)：实现顺序与验收标准；
-- [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md)：已实现内容与仍需实机验收项；
-- [docs/install-contract.md](./docs/install-contract.md)：脚本行为到 Tauri 行为的逐项映射；
-- [docs/decisions.md](./docs/decisions.md)：已确定事项与待确认事项。
-
-
-
-## 官方参考
-
-- [Tauri v2：嵌入额外资源](https://v2.tauri.app/develop/resources/)
-- [Tauri v2：前端调用 Rust](https://v2.tauri.app/develop/calling-rust/)
-- [Tauri v2：Capabilities](https://v2.tauri.app/security/capabilities/)
+当前仓库尚未声明开源许可证。提交 issue 前，请不要粘贴用户目录、控件源私有地址、令牌或其他敏感信息。

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    wps_addon_installer_lib::run()
+    wps_addon_manager_lib::run()
 }

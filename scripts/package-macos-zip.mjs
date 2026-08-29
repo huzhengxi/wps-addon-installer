@@ -67,7 +67,6 @@ const bundleDirectory = resolve(targetDirectory, "bundle", "macos");
 const tauriConfig = JSON.parse(readFileSync(resolve(tauriDirectory, "tauri.conf.json"), "utf8"));
 const packageConfig = JSON.parse(readFileSync(resolve(projectRoot, "package.json"), "utf8"));
 const appPath = resolve(bundleDirectory, `${tauriConfig.productName}.app`);
-const embeddedManifest = resolve(appPath, "Contents", "Resources", "addon", "addon-manifest.json");
 const archiveName = `${packageConfig.name}_macos_${tauriConfig.version}_${architectureName(target)}.zip`;
 const archivePath = resolve(bundleDirectory, archiveName);
 const temporaryArchivePath = `${archivePath}.tmp`;
@@ -87,10 +86,6 @@ execFileSync(process.execPath, [tauriCli, "build", "--bundles", "app", ...buildA
 if (!existsSync(appPath)) {
   throw new Error(`Tauri 构建完成，但没有找到应用：${appPath}`);
 }
-if (!existsSync(embeddedManifest)) {
-  throw new Error(`应用缺少离线加载项资源：${embeddedManifest}`);
-}
-
 rmSync(temporaryArchivePath, { force: true });
 console.log("正在压缩 .app…");
 execFileSync("/usr/bin/ditto", [

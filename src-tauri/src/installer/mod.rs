@@ -153,7 +153,7 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
 
     progress(app, "install", 40, "正在解压加载项…");
     let extraction = tempfile::Builder::new()
-        .prefix("wps-addon-installer-")
+        .prefix("wps-addon-manager-")
         .tempdir()
         .map_err(InstallerError::Io)?;
     archive::extract_and_validate(&payload.archive, extraction.path(), &manifest.archive_root)?;
@@ -205,7 +205,7 @@ pub fn install_catalog_addon(app: &AppHandle, addon: &CatalogAddon) -> Result<Op
     let download = tempfile::Builder::new().prefix("wps-addon-download-").tempfile().map_err(InstallerError::Io)?;
     download_catalog_archive(&addon.download_url, addon.size, &addon.sha256, download.path())?;
     progress(app, "install", 45, "正在校验并解压插件包…");
-    let extraction = tempfile::Builder::new().prefix("wps-addon-installer-").tempdir().map_err(InstallerError::Io)?;
+    let extraction = tempfile::Builder::new().prefix("wps-addon-manager-").tempdir().map_err(InstallerError::Io)?;
     archive::extract_and_validate(download.path(), extraction.path(), &archive_root)?;
     progress(app, "install", 65, "正在写入加载项文件…");
     transaction::install_catalog(&paths, extraction.path().join(&archive_root), addon, &archive_root)?;

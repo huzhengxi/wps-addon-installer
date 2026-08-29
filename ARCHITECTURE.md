@@ -9,7 +9,7 @@
 ## 2. 目标目录结构
 
 ```text
-wps-addon-installer/
+wps-addon-manager/
 ├── README.md
 ├── ARCHITECTURE.md
 ├── TODO.md
@@ -221,4 +221,3 @@ Rust 后端是唯一允许修改文件系统的组件。所有操作都由 `addo
 - 集成测试：临时 HOME + 假 WPS 目录，覆盖安装、覆盖、回滚、卸载和幂等；
 - macOS 手工验收：Intel/Apple Silicon 各一次，真实 WPS 安装、重启和 Ribbon 展示；
 - Windows 手工验收：干净用户环境安装、覆盖、卸载和 WPS 重启。
-

@@ -1,5 +1,23 @@
 {
-  "name": "wps-addon-installer",
+  "name": "wps-addon-manager",
+  "description": "WPS Office ET 插件管理器，支持可信控件源、SHA-256 校验、安装、卸载与权限恢复。",
+  "keywords": [
+    "wps",
+    "wps-office",
+    "wps-addon",
+    "wps-plugin",
+    "wps-js-addin",
+    "tauri",
+    "plugin-manager"
+  ],
+  "homepage": "https://github.com/huzhengxi/wps-addon-manager",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huzhengxi/wps-addon-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/huzhengxi/wps-addon-manager/issues"
+  },
   "private": true,
   "version": "0.0.11",
   "type": "module",

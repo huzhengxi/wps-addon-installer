@@ -1,17 +1,19 @@
 [package]
-name = "wps-addon-installer"
+name = "wps-addon-manager"
 version = "0.1.0"
-description = "Offline installer for the WPS date-picker addon"
+description = "WPS Office ET add-on manager with trusted control sources, secure installation and removal"
+keywords = ["wps", "wps-office", "addon", "plugin-manager", "tauri"]
+categories = ["gui"]
 authors = ["Liqiong"]
 edition = "2021"
 rust-version = "1.85"
 
 [lib]
-name = "wps_addon_installer_lib"
+name = "wps_addon_manager_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "wps-addon-installer"
+name = "wps-addon-manager"
 path = "src/main.rs"
 
 [build-dependencies]
