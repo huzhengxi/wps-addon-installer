@@ -10,7 +10,7 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 use thiserror::Error;
 
-use crate::model::{CatalogAddon, EnvironmentReport, InstallationStatus, OperationReport};
+use crate::model::{CatalogAddon, EnvironmentReport, InstalledAddon, InstallationStatus, OperationReport};
 use manifest::{AddonManifest, PayloadPaths};
 use paths::InstallPaths;
 
@@ -83,7 +83,7 @@ fn ensure_supported_wps_version() -> Result<(), InstallerError> {
     Ok(())
 }
 
-pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
+pub fn inspect(_app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
     let architecture = std::env::consts::ARCH.to_owned();
     if !(cfg!(target_os = "macos") || cfg!(target_os = "windows")) {
         return Ok(EnvironmentReport {
@@ -110,47 +110,21 @@ pub fn inspect(app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {
         .and_then(|version| wps::version_is_supported(version).ok())
         .unwrap_or(false);
 
-    let (manifest, _payload, paths) = match load(app) {
-        Ok(value) => value,
-        Err(error) => {
-            return Ok(EnvironmentReport {
-                architecture,
-                addon_version: "未知".into(),
-                install_status: InstallationStatus::PayloadInvalid,
-                wps_installed,
-                wps_running,
-                wps_version,
-                wps_version_supported,
-                wps_minimum_version: wps::MINIMUM_SUPPORTED_VERSION.into(),
-                js_addons_path: "无法解析".into(),
-                payload_valid: false,
-                addon_directory_exists: false,
-                publish_entry_matches: false,
-                message: error.to_string(),
-            });
-        }
+    let probe = CatalogAddon {
+        id: "probe".into(), name: "probe".into(), addon_type: "et".into(), version: "0".into(),
+        description: String::new(), platforms: Vec::new(), download_url: "https://example.invalid".into(),
+        sha256: String::new(), size: 1, published_at: None, release_notes: None, source_id: String::new(), source_name: String::new(),
     };
-
-    let addon_directory_exists = paths.target_dir.exists();
-    let publish_entry_matches =
-        publish_xml::matches(&paths.publish_xml, &manifest).unwrap_or(false);
-    let install_status = match (addon_directory_exists, publish_entry_matches) {
-        (false, false) => InstallationStatus::NotInstalled,
-        (true, true) => InstallationStatus::Installed,
-        _ => InstallationStatus::Partial,
-    };
-    let message = match install_status {
-        InstallationStatus::NotInstalled => "尚未发现日期选择器加载项。".into(),
-        InstallationStatus::Installed => "加载项目录和 publish.xml 配置均匹配。".into(),
-        InstallationStatus::Partial => {
-            "加载项目录与 publish.xml 配置不一致，可使用“安装 / 修复”。".into()
-        }
-        _ => unreachable!(),
-    };
+    let paths = InstallPaths::from_catalog_addon(&probe)?;
+    let installed = list_installed_catalog_addons()?;
+    let addon_directory_exists = !installed.is_empty();
+    let publish_entry_matches = paths.publish_xml.is_file();
+    let install_status = if installed.is_empty() { InstallationStatus::NotInstalled } else { InstallationStatus::Installed };
+    let message = if installed.is_empty() { "尚未发现在线管理的插件。".into() } else { format!("已发现 {} 个已安装插件。", installed.len()) };
 
     Ok(EnvironmentReport {
         architecture,
-        addon_version: manifest.version,
+        addon_version: "在线控件源".into(),
         install_status,
         wps_installed,
         wps_running,
@@ -250,6 +224,72 @@ pub fn install_catalog_addon(app: &AppHandle, addon: &CatalogAddon) -> Result<Op
         restart_succeeded,
         warnings,
     })
+}
+
+pub fn list_installed_catalog_addons() -> Result<Vec<InstalledAddon>, InstallerError> {
+    let probe = CatalogAddon {
+        id: "probe".into(), name: "probe".into(), addon_type: "et".into(), version: "0".into(),
+        description: String::new(), platforms: Vec::new(), download_url: "https://example.invalid".into(),
+        sha256: String::new(), size: 1, published_at: None, release_notes: None, source_id: String::new(), source_name: String::new(),
+    };
+    let paths = InstallPaths::from_catalog_addon(&probe)?;
+    let root = &paths.jsaddons_dir;
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(InstallerError::Io(error)),
+    };
+    let mut installed = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        let metadata = std::fs::symlink_metadata(entry.path())?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() { continue; }
+        let directory = entry.file_name().to_string_lossy().to_string();
+        let Some((id, version)) = directory.rsplit_once('_') else { continue; };
+        if manifest::validate_token(id, "插件 ID").is_err() || manifest::validate_token(version, "插件版本").is_err() { continue; }
+        let healthy = ["manifest.xml", "index.html", "main.js"].iter().all(|file| entry.path().join(file).is_file());
+        installed.push(InstalledAddon {
+            id: id.to_owned(), name: id.to_owned(), version: version.to_owned(),
+            source: "已安装目录".into(), health: if healthy { "运行正常" } else { "需要修复" }.into(),
+        });
+    }
+    installed.sort_by(|left, right| left.id.cmp(&right.id));
+    Ok(installed)
+}
+
+pub fn uninstall_catalog_addon(app: &AppHandle, addon_id: &str, version: &str) -> Result<OperationReport, InstallerError> {
+    let _guard = lock_operation()?;
+    if !wps::application_exists() { return Err(InstallerError::WpsNotFound(wps::APPLICATION_HINT.into())); }
+    manifest::validate_token(addon_id, "插件 ID")?;
+    manifest::validate_token(version, "插件版本")?;
+    let paths = InstallPaths::from_installation(addon_id, version)?;
+    paths.ensure_jsaddons_dir()?;
+    progress(app, "uninstall", 30, "正在移除插件文件…");
+    let metadata = match std::fs::symlink_metadata(&paths.target_dir) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(InstallerError::UnsafePath("未找到所选插件目录。".into())),
+        Err(error) => return Err(InstallerError::Io(error)),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() { return Err(InstallerError::UnsafePath("拒绝删除符号链接或非目录插件。".into())); }
+    let backup = paths.checked_child(&format!(".{}_{}.remove-{}", addon_id, version, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()))?;
+    let xml_before = std::fs::read_to_string(&paths.publish_xml).unwrap_or_default();
+    let xml_after = publish_xml::remove_catalog_entry(&xml_before, addon_id);
+    let xml_temp = paths.checked_child(&format!(".publish.xml.remove-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()))?;
+    publish_xml::write_temp(&xml_temp, &xml_after)?;
+    std::fs::rename(&paths.target_dir, &backup)?;
+    let xml_result = std::fs::rename(&xml_temp, &paths.publish_xml);
+    if let Err(error) = xml_result {
+        let _ = std::fs::rename(&backup, &paths.target_dir);
+        let _ = std::fs::remove_file(&xml_temp);
+        return Err(InstallerError::Commit(error.to_string()));
+    }
+    std::fs::remove_dir_all(&backup)?;
+    progress(app, "uninstall", 85, "正在重新打开 WPS…");
+    let restart = wps::restart();
+    let restart_succeeded = restart.is_ok();
+    let warnings = restart.err().map(|error| vec![format!("插件已卸载，但 WPS 重启失败：{error}")]).unwrap_or_default();
+    progress(app, "uninstall", 100, "卸载完成");
+    Ok(OperationReport { action: "uninstall".into(), message: format!("{addon_id} 已卸载。"), restart_attempted: true, restart_succeeded, warnings })
 }
 
 fn download_catalog_archive(url: &str, expected_size: u64, expected_hash: &str, destination: &std::path::Path) -> Result<(), InstallerError> {

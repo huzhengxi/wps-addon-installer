@@ -27,11 +27,13 @@ import {
   addControlSource,
   inspectPermissions,
   installCatalogAddon,
+  listInstalledAddons,
   listCatalogAddons,
   listControlSources,
   openPermissionSettings,
   setControlSourceEnabled,
   testControlSource,
+  uninstallSelectedAddon,
   type ControlSource,
   type PermissionReport
 } from "./api";
@@ -123,6 +125,17 @@ export function App() {
       });
       if (report.warnings.length > 0) notify("warning", report.warnings[0]);
     }).catch(() => undefined);
+    void listInstalledAddons().then((report) => {
+      setAddons((items) => [
+        ...report.map((addon) => ({
+          ...addon,
+          description: "已部署到 WPS 加载项目录",
+          installed: true,
+          health: addon.health === "需要修复" ? "需要修复" as const : "运行正常" as const
+        })),
+        ...items.filter((item) => !item.installed)
+      ]);
+    }).catch(() => undefined);
     void inspectPermissions().then((report) => {
       setPermissionReport(report);
       setPermissionGranted(report.jsaddonsWritable);
@@ -145,10 +158,22 @@ export function App() {
       .catch((error: unknown) => notify("error", error instanceof Error ? error.message : "插件安装失败。"));
   };
   const uninstallSelected = () => {
-    setAddons((items) => items.map((item) => selected.includes(item.id) ? { ...item, installed: false } : item));
-    setSelected([]);
-    setModal(null);
-    notify("success", "已更新插件列表。实际卸载将仅移除所选插件及其 publish.xml 条目。");
+    const selectedAddons = addons.filter((item) => selected.includes(item.id) && item.installed);
+    if (selectedAddons.length === 0) {
+      notify("warning", "请选择至少一个已安装插件。 ");
+      return;
+    }
+    void (async () => {
+      for (const addon of selectedAddons) await uninstallSelectedAddon(addon.id, addon.version);
+    })()
+      .then(() => {
+        const removed = new Set(selectedAddons.map((addon) => `${addon.id}@${addon.version}`));
+        setAddons((items) => items.map((item) => removed.has(`${item.id}@${item.version}`) ? { ...item, installed: false } : item));
+        setSelected([]);
+        setModal(null);
+        notify("success", `已卸载 ${selectedAddons.length} 个插件。`);
+      })
+      .catch((error: unknown) => notify("error", error instanceof Error ? error.message : "插件卸载失败。"));
   };
   const addSource = async () => {
     if (!sourceDraft.name.trim() || !sourceDraft.url.startsWith("https://")) {

@@ -40,11 +40,6 @@
       "icons/icon.ico",
       "icons/128x128.png"
     ],
-    "resources": {
-      "resources/addon/addon-manifest.json": "addon/addon-manifest.json",
-      "resources/addon/wps-addon-build/date-picker.7z": "addon/wps-addon-build/date-picker.7z",
-      "resources/addon/wps-addon-publish/publish.html": "addon/wps-addon-publish/publish.html"
-    },
     "macOS": {
       "minimumSystemVersion": "11.0"
     }

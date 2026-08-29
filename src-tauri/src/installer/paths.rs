@@ -31,15 +31,19 @@ impl InstallPaths {
     }
 
     pub fn from_catalog_addon(addon: &CatalogAddon) -> Result<Self, InstallerError> {
-        validate_token(&addon.id, "插件 ID")?;
-        validate_token(&addon.version, "插件版本")?;
+        Self::from_installation(&addon.id, &addon.version)
+    }
+
+    pub fn from_installation(id: &str, version: &str) -> Result<Self, InstallerError> {
+        validate_token(id, "插件 ID")?;
+        validate_token(version, "插件版本")?;
         let home = home_dir()?;
         #[cfg(target_os = "windows")]
         let relative = "AppData/Roaming/kingsoft/wps/jsaddons";
         #[cfg(not(target_os = "windows"))]
         let relative = "Library/Application Support/Kingsoft/WPS Office/jsaddons";
         let jsaddons_dir = safe_descendant(&home, relative)?;
-        let archive_root = format!("{}_{}", addon.id, addon.version);
+        let archive_root = format!("{id}_{version}");
         Ok(Self {
             target_dir: safe_child(&jsaddons_dir, &archive_root)?,
             publish_xml: safe_child(&jsaddons_dir, "publish.xml")?,

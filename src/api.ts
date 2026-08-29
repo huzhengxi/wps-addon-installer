@@ -92,6 +92,14 @@ export interface CatalogReport {
   warnings: string[];
 }
 
+export interface InstalledAddon {
+  id: string;
+  name: string;
+  version: string;
+  source: string;
+  health: "运行正常" | "需要修复";
+}
+
 export interface PermissionReport {
   wpsFound: boolean;
   wpsPathReadable: boolean;
@@ -118,5 +126,8 @@ export const testControlSource = (id: string) => invoke<SourceTestReport>("test_
 export const listCatalogAddons = () => invoke<CatalogReport>("list_catalog_addons");
 export const installCatalogAddon = (sourceId: string, addonId: string) =>
   invoke<OperationReport>("install_catalog_addon", { sourceId, addonId });
+export const listInstalledAddons = () => invoke<InstalledAddon[]>("list_installed_addons");
+export const uninstallSelectedAddon = (addonId: string, version: string) =>
+  invoke<OperationReport>("uninstall_selected_addon", { addonId, version });
 export const inspectPermissions = () => invoke<PermissionReport>("inspect_permissions");
 export const openPermissionSettings = () => invoke<void>("open_permission_settings");

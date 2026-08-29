@@ -5,7 +5,7 @@ use crate::{
     installer,
     model::{
         AddControlSourceInput, AppUpdateReport, CatalogReport, ControlSource, EnvironmentReport,
-        OperationReport, PermissionReport, SourceTestReport,
+        InstalledAddon, OperationReport, PermissionReport, SourceTestReport,
     },
     updater,
 };
@@ -62,6 +62,23 @@ pub async fn install_catalog_addon(
     })
     .await
     .map_err(|error| format!("插件安装后台任务执行失败：{error}"))?
+}
+
+#[tauri::command]
+pub fn list_installed_addons() -> Result<Vec<InstalledAddon>, String> {
+    installer::list_installed_catalog_addons().map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn uninstall_selected_addon(
+    app: AppHandle,
+    addon_id: String,
+    version: String,
+) -> Result<OperationReport, String> {
+    tauri::async_runtime::spawn_blocking(move || installer::uninstall_catalog_addon(&app, &addon_id, &version))
+        .await
+        .map_err(|error| format!("插件卸载后台任务执行失败：{error}"))?
+        .map_err(command_error)
 }
 
 #[tauri::command]

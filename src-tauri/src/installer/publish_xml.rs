@@ -40,16 +40,8 @@ fn remove_entry(content: &str, name: &str) -> String {
     output
 }
 
-pub fn matches(path: &Path, manifest: &AddonManifest) -> Result<bool, InstallerError> {
-    let content = match fs::read_to_string(path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(InstallerError::Io(error)),
-    };
-    Ok(content.contains(&format!("name=\"{}\"", manifest.name))
-        && content.contains(&format!("type=\"{}\"", manifest.addon_type))
-        && content.contains(&format!("url=\"{}\"", manifest.archive_root))
-        && content.contains(&format!("version=\"{}\"", manifest.version)))
+pub fn remove_catalog_entry(existing: &str, name: &str) -> String {
+    remove_entry(existing, name)
 }
 
 pub fn write_temp(path: &Path, content: &str) -> Result<(), InstallerError> {

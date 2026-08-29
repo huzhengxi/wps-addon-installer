@@ -63,6 +63,16 @@ pub struct CatalogReport {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct InstalledAddon {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub source: String,
+    pub health: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PermissionReport {
     pub wps_found: bool,
     pub wps_path_readable: bool,
@@ -76,8 +86,6 @@ pub struct PermissionReport {
 pub enum InstallationStatus {
     NotInstalled,
     Installed,
-    Partial,
-    PayloadInvalid,
     Unsupported,
 }
 

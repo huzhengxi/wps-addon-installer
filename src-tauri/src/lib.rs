@@ -15,6 +15,8 @@ pub fn run() {
             commands::test_control_source,
             commands::list_catalog_addons,
             commands::install_catalog_addon,
+            commands::list_installed_addons,
+            commands::uninstall_selected_addon,
             commands::inspect_permissions,
             commands::open_permission_settings,
             commands::install_addon,
