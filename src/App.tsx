@@ -54,10 +54,7 @@ type Addon = {
   sourceId?: string;
 };
 
-const initialAddons: Addon[] = [
-  { id: "invoice-helper", name: "发票助手", description: "整理并填写发票信息", version: "2.3.0", source: "外部安装", installed: true, health: "运行正常" },
-  { id: "date-picker", name: "日期选择器", description: "在 WPS 表格中快速选择和填写日期", version: "1.0.1", source: "官方控件源", installed: false, health: "运行正常" }
-];
+const initialAddons: Addon[] = [];
 
 const initialSources: ControlSource[] = [
   { id: "official", name: "官方控件源", indexUrl: "https://huzhengxi.github.io/wps-addon-catalog/v1/index.json", enabled: true, defaultSource: true, lastSyncedAt: null },
