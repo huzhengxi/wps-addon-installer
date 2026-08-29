@@ -7,25 +7,52 @@
   </head>
   <body>
     <main class="shell">
-      <header>
-        <p class="eyebrow">WPS OFFLINE ADDON</p>
-        <h1>日期选择器安装器</h1>
-        <p class="subtle">离线安装、修复或卸载 WPS 表格日期选择器。</p>
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">日</div>
+        <div>
+          <p class="eyebrow">WPS 表格加载项</p>
+          <h1>日期选择器</h1>
+          <p class="subtle">安装、修复或移除离线加载项</p>
+        </div>
       </header>
 
-      <section class="status-card" aria-live="polite">
+      <section class="status-card" aria-live="polite" aria-labelledby="status-title">
         <div class="status-heading">
           <div>
-            <p class="label">当前状态</p>
+            <p class="label">加载项状态</p>
             <h2 id="status-title">正在检查环境…</h2>
           </div>
           <span id="status-badge" class="badge checking">检查中</span>
         </div>
-        <dl id="environment-details" class="details"></dl>
+        <p id="status-description" class="status-description">正在读取 WPS 和加载项信息。</p>
+        <details class="environment-disclosure">
+          <summary>查看环境详情</summary>
+          <dl id="environment-details" class="details"></dl>
+        </details>
+      </section>
+
+      <section class="action-panel" aria-label="加载项操作">
+        <div class="action-panel-heading">
+          <div>
+            <p class="label">推荐操作</p>
+            <h2>准备好后开始安装</h2>
+          </div>
+          <span class="action-hint">将自动重启 WPS</span>
+        </div>
+        <section class="actions">
+          <button id="install-button" class="primary" type="button">
+            <span class="button-spinner" aria-hidden="true"></span>
+            <span class="button-label">安装 / 修复</span>
+          </button>
+          <button id="uninstall-button" class="secondary" type="button">
+            <span class="button-spinner" aria-hidden="true"></span>
+            <span class="button-label">卸载</span>
+          </button>
+        </section>
+        <p class="operation-note">继续前，请先保存所有正在编辑的 WPS 文档。</p>
       </section>
 
       <p id="operation-message" class="operation-message" role="status"></p>
-
       <section id="operation-progress" class="operation-progress" aria-live="polite" hidden>
         <div class="progress-heading">
           <span id="progress-message">正在准备…</span>
@@ -44,27 +71,18 @@
         </div>
       </section>
 
-
-      <section class="actions" aria-label="加载项操作">
-        <button id="install-button" class="primary" type="button">
-          <span class="button-spinner" aria-hidden="true"></span>
-          <span class="button-label">安装 / 修复</span>
-        </button>
-        <button id="uninstall-button" class="secondary" type="button">
-          <span class="button-spinner" aria-hidden="true"></span>
-          <span class="button-label">卸载</span>
-        </button>
-      </section>
-
-      <section class="help">
-        <p>安装或卸载完成后会重启 WPS；请先保存正在编辑的文档。</p>
-        <div class="meta-row">
+      <details class="utility-panel">
+        <summary>诊断与应用更新</summary>
+        <div class="utility-content">
+          <p>仅当遇到问题或需要手动确认安装器版本时使用。</p>
+          <div class="meta-row">
           <span id="app-version" class="app-version"></span>
           <button id="check-update-link" class="link-button" type="button">检查更新</button>
           <span class="meta-sep" aria-hidden="true">·</span>
           <button id="copy-diagnostics" class="link-button" type="button">复制诊断信息</button>
+          </div>
         </div>
-      </section>
+      </details>
     </main>
 
     <div id="update-toast" class="update-toast" role="alert" hidden>

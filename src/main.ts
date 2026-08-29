@@ -1,7 +1,6 @@
 import "./styles.css";
 import {
   type EnvironmentReport,
-  type InstallationStatus,
   type OperationProgress,
   type AppUpdateReport,
   type AppUpdateProgress,
@@ -13,6 +12,9 @@ import {
   listenToOperationProgress,
   uninstallAddon
 } from "./api";
+import { createConfirmationDialogView } from "./ui/confirmation-dialog";
+import { createEnvironmentStatusView } from "./ui/environment-status";
+import { createOperationProgressView } from "./ui/operation-progress";
 import { getVersion } from "@tauri-apps/api/app";
 
 const installButton = document.querySelector<HTMLButtonElement>("#install-button")!;
@@ -20,6 +22,7 @@ const uninstallButton = document.querySelector<HTMLButtonElement>("#uninstall-bu
 const copyButton = document.querySelector<HTMLButtonElement>("#copy-diagnostics")!;
 const title = document.querySelector<HTMLElement>("#status-title")!;
 const badge = document.querySelector<HTMLElement>("#status-badge")!;
+const statusDescription = document.querySelector<HTMLElement>("#status-description")!;
 const details = document.querySelector<HTMLElement>("#environment-details")!;
 const message = document.querySelector<HTMLElement>("#operation-message")!;
 const progress = document.querySelector<HTMLElement>("#operation-progress")!;
@@ -43,26 +46,31 @@ const toastAction = document.querySelector<HTMLButtonElement>("#toast-action")!;
 const toastDismiss = document.querySelector<HTMLButtonElement>("#toast-dismiss")!;
 
 let latestReport: EnvironmentReport | undefined;
-let confirmationResolver: ((confirmed: boolean) => void) | undefined;
 let latestUpdate: AppUpdateReport | undefined;
 let updateBusy = false;
 
 const isWindows = navigator.userAgent.includes("Windows");
-const wpsNotFoundLabel = isWindows
-  ? "未找到 WPS Office（需已安装并可从注册表或本地目录识别）"
-  : "未找到 /Applications/wpsoffice.app";
-
-function minimumVersionLabel(report: EnvironmentReport) {
-  return `>= ${report.wpsMinimumVersion || "未知"}`;
-}
-
-const labels: Record<InstallationStatus, string> = {
-  not_installed: "尚未安装",
-  installed: "已安装",
-  partial: "需要修复",
-  payload_invalid: "安装包异常",
-  unsupported: "环境不支持"
-};
+const statusView = createEnvironmentStatusView({
+  title,
+  badge,
+  description: statusDescription,
+  details,
+  isWindows
+});
+const progressView = createOperationProgressView({
+  container: progress,
+  message: progressMessage,
+  percent: progressPercent,
+  track: progressTrack,
+  bar: progressBar
+});
+const confirmationView = createConfirmationDialogView({
+  dialog: confirmationDialog,
+  title: confirmationTitle,
+  message: confirmationMessage,
+  cancel: confirmationCancel,
+  confirm: confirmationConfirm
+});
 
 type OperationAction = "install" | "uninstall";
 
@@ -88,19 +96,11 @@ function setUpdateBusy(busy: boolean) {
 }
 
 function updateProgress(update: OperationProgress) {
-  const percent = Math.max(0, Math.min(100, update.percent));
-  progress.hidden = false;
-  progress.classList.remove("failed");
-  progressMessage.textContent = update.message;
-  progressPercent.textContent = `${percent}%`;
-  progressTrack.setAttribute("aria-valuenow", String(percent));
-  progressBar.style.width = `${percent}%`;
+  progressView.update(update);
 }
 
 function failProgress(error: unknown) {
-  progress.hidden = false;
-  progress.classList.add("failed");
-  progressMessage.textContent = readableError(error);
+  progressView.fail(readableError(error));
 }
 
 function resetProgress(action: "install" | "uninstall") {
@@ -145,30 +145,6 @@ function hideUpdateToast() {
   toastProgress.hidden = true;
 }
 
-function closeConfirmation(confirmed: boolean) {
-  confirmationDialog.hidden = true;
-  confirmationResolver?.(confirmed);
-  confirmationResolver = undefined;
-}
-
-function confirmOperation(action: OperationAction | "app-update") {
-  confirmationTitle.textContent =
-    action === "install" ? "安装日期选择器？" : action === "uninstall" ? "卸载日期选择器？" : "更新安装器？";
-  confirmationMessage.textContent =
-    action === "install"
-      ? "安装或修复会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
-      : action === "uninstall"
-        ? "卸载会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
-        : "即将下载并安装新版安装器，安装完成后会重启本应用；已部署的 WPS 加载项不会被自动修改。";
-  confirmationDialog.hidden = false;
-  confirmationConfirm.textContent =
-    action === "install" ? "开始安装" : action === "uninstall" ? "确认卸载" : "开始更新";
-  confirmationConfirm.focus();
-  return new Promise<boolean>((resolve) => {
-    confirmationResolver = resolve;
-  });
-}
-
 async function checkUpdates(silent: boolean): Promise<boolean> {
   if (updateBusy) return Boolean(latestUpdate?.update);
   if (!silent) {
@@ -196,33 +172,7 @@ async function checkUpdates(silent: boolean): Promise<boolean> {
 function setReport(report: EnvironmentReport) {
   latestReport = report;
   installButton.disabled = !report.wpsVersionSupported;
-  title.textContent = labels[report.installStatus];
-  badge.textContent = labels[report.installStatus];
-  badge.className = `badge ${report.installStatus}`;
-  details.replaceChildren(
-    ...[
-      ["内置版本", report.addonVersion],
-      ["WPS", report.wpsInstalled ? (report.wpsRunning ? "已安装，正在运行" : "已安装") : wpsNotFoundLabel],
-      ["WPS 版本", report.wpsVersion ?? "无法读取"],
-      [
-        "版本要求",
-        report.wpsVersionSupported
-          ? `${minimumVersionLabel(report)}（通过）`
-          : `${minimumVersionLabel(report)}（不通过）`
-      ],
-      ["加载项状态", report.message],
-      ["运行架构", report.architecture],
-      ["载荷校验", report.payloadValid ? "通过" : "失败"]
-    ].map(([key, value]) => {
-      const fragment = document.createDocumentFragment();
-      const dt = document.createElement("dt");
-      dt.textContent = key;
-      const dd = document.createElement("dd");
-      dd.textContent = value;
-      fragment.append(dt, dd);
-      return fragment;
-    })
-  );
+  statusView.setReport(report);
 }
 
 async function refresh(clearMessage = true) {
@@ -230,9 +180,7 @@ async function refresh(clearMessage = true) {
     setReport(await inspectEnvironment());
     if (clearMessage) message.textContent = "";
   } catch (error) {
-    title.textContent = "无法检查环境";
-    badge.textContent = "错误";
-    badge.className = "badge payload_invalid";
+    statusView.setError(readableError(error));
     message.textContent = readableError(error);
   }
 }
@@ -244,7 +192,7 @@ function readableError(error: unknown) {
 }
 
 async function run(action: "install" | "uninstall") {
-  if (!await confirmOperation(action)) return;
+  if (!await confirmationView.confirm(action)) return;
 
   message.textContent = "";
   resetProgress(action);
@@ -283,7 +231,7 @@ async function runAppUpdate() {
     void checkUpdates(false);
     return;
   }
-  if (!await confirmOperation("app-update")) return;
+  if (!await confirmationView.confirm("app-update")) return;
 
   setUpdateBusy(true);
   toastAction.textContent = "正在更新…";
@@ -310,14 +258,6 @@ async function runAppUpdate() {
   }
 }
 
-confirmationCancel.addEventListener("click", () => closeConfirmation(false));
-confirmationConfirm.addEventListener("click", () => closeConfirmation(true));
-confirmationDialog.addEventListener("click", (event) => {
-  if (event.target === confirmationDialog) closeConfirmation(false);
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !confirmationDialog.hidden) closeConfirmation(false);
-});
 installButton.addEventListener("click", () => void run("install"));
 uninstallButton.addEventListener("click", () => void run("uninstall"));
 checkUpdateLink.addEventListener("click", () => {

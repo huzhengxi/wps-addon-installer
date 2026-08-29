@@ -1,0 +1,3 @@
+interface:
+  display_name: "Delegate Expensive Operations"
+  short_description: "Have the user run builds, long tests, and bulky diagnostics."
