@@ -44,7 +44,7 @@
 
 - [x] 配置 GitHub Secrets：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；
 - [x] 本地验证 macOS 签名产物：`npm run package:zip -- --target x86_64-apple-darwin` 产出 `WPSAddonInstaller.app.tar.gz` 和 `.sig`。
-- [ ] 提交改动并发布首个 updater 版本：`git commit` + `python3 scripts/release_version.py`，核对 GitHub Actions 与 Release 资产、`latest.json`；
+- [x] 提交改动并发布首个 updater 版本 v0.0.10：Actions 构建成功，Release 资产齐全，`latest.json` 平台/签名/URL 正确；
 - [ ] 验证真实自动更新：发布更高版本后，在旧版本中确认检查、下载、验签、安装并重启；
 - [ ] macOS Apple Developer ID 签名与公证接入发布 workflow。
 
