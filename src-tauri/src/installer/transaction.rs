@@ -5,6 +5,7 @@ use std::{
 };
 
 use super::{manifest::AddonManifest, paths::InstallPaths, publish_xml, InstallerError};
+use crate::model::CatalogAddon;
 
 fn nonce() -> String {
     SystemTime::now()
@@ -65,6 +66,47 @@ pub fn install(
         };
     }
 
+    cleanup_path(&backup);
+    cleanup_path(&xml_backup);
+    Ok(())
+}
+
+pub fn install_catalog(
+    paths: &InstallPaths,
+    extracted_root: PathBuf,
+    addon: &CatalogAddon,
+    archive_root: &str,
+) -> Result<(), InstallerError> {
+    let stage_name = format!(".{}.stage-{}", archive_root, nonce());
+    let backup_name = format!(".{}.backup-{}", archive_root, nonce());
+    let xml_temp_name = format!(".publish.xml.tmp-{}", nonce());
+    let xml_backup_name = format!(".publish.xml.backup-{}", nonce());
+    let stage = paths.checked_child(&stage_name)?;
+    let backup = paths.checked_child(&backup_name)?;
+    let xml_temp = paths.checked_child(&xml_temp_name)?;
+    let xml_backup = paths.checked_child(&xml_backup_name)?;
+    copy_dir(&extracted_root, &stage)?;
+    validate_staged_addon(&stage)?;
+    let existing_xml = fs::read_to_string(&paths.publish_xml).ok();
+    publish_xml::write_temp(&xml_temp, &publish_xml::merge_catalog(existing_xml.as_deref(), addon, archive_root))?;
+    let target_existed = checked_exists(&paths.target_dir)?;
+    let xml_existed = checked_exists(&paths.publish_xml)?;
+    let commit_result = (|| -> Result<(), InstallerError> {
+        if target_existed { fs::rename(&paths.target_dir, &backup)?; }
+        fs::rename(&stage, &paths.target_dir)?;
+        if xml_existed { fs::rename(&paths.publish_xml, &xml_backup)?; }
+        fs::rename(&xml_temp, &paths.publish_xml)?;
+        Ok(())
+    })();
+    if let Err(error) = commit_result {
+        let rollback = rollback(&paths.target_dir, &backup, target_existed, &paths.publish_xml, &xml_backup, xml_existed);
+        cleanup_path(&stage);
+        cleanup_path(&xml_temp);
+        return match rollback {
+            Ok(()) => Err(InstallerError::Commit(error.to_string())),
+            Err(rollback_error) => Err(InstallerError::Commit(format!("{error}；回滚也失败：{rollback_error}"))),
+        };
+    }
     cleanup_path(&backup);
     cleanup_path(&xml_backup);
     Ok(())

@@ -26,6 +26,8 @@ import {
 import {
   addControlSource,
   inspectPermissions,
+  installCatalogAddon,
+  listCatalogAddons,
   listControlSources,
   openPermissionSettings,
   setControlSourceEnabled,
@@ -45,6 +47,7 @@ type Addon = {
   source: string;
   installed: boolean;
   health: "运行正常" | "需要修复" | "外部安装";
+  sourceId?: string;
 };
 
 const initialAddons: Addon[] = [
@@ -104,6 +107,22 @@ export function App() {
 
   useEffect(() => {
     void listControlSources().then(setSources).catch(() => undefined);
+    void listCatalogAddons().then((report) => {
+      setAddons((items) => {
+        const installedItems = items.filter((item) => item.installed);
+        return [...installedItems, ...report.addons.map((addon) => ({
+          id: addon.id,
+          name: addon.name,
+          description: addon.description || "来自控件源的 WPS 表格插件",
+          version: addon.version,
+          source: addon.sourceName,
+          installed: false,
+          health: "运行正常" as const
+          , sourceId: addon.sourceId
+        }))];
+      });
+      if (report.warnings.length > 0) notify("warning", report.warnings[0]);
+    }).catch(() => undefined);
     void inspectPermissions().then((report) => {
       setPermissionReport(report);
       setPermissionGranted(report.jsaddonsWritable);
@@ -111,8 +130,19 @@ export function App() {
   }, []);
 
   const install = (id: string) => {
-    setAddons((items) => items.map((item) => item.id === id ? { ...item, installed: true } : item));
-    notify("success", "已加入安装队列。正式下载、校验和部署将在控件源后端接入后执行。");
+    const addon = addons.find((item) => item.id === id);
+    if (!addon) return;
+    if (!addon.sourceId) {
+      notify("warning", `“${addon.name}”不是来自可用控件源，无法在线安装。`);
+      return;
+    }
+    notify("warning", `正在安装“${addon.name}”：下载、SHA-256 校验和部署可能需要几分钟。`);
+    void installCatalogAddon(addon.sourceId, addon.id)
+      .then((report) => {
+        setAddons((items) => items.map((item) => item.id === id ? { ...item, installed: true } : item));
+        notify("success", report.message);
+      })
+      .catch((error: unknown) => notify("error", error instanceof Error ? error.message : "插件安装失败。"));
   };
   const uninstallSelected = () => {
     setAddons((items) => items.map((item) => selected.includes(item.id) ? { ...item, installed: false } : item));

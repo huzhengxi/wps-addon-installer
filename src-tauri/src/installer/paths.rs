@@ -7,6 +7,7 @@ use super::{
     manifest::{validate_relative_path, validate_token, AddonManifest},
     InstallerError,
 };
+use crate::model::CatalogAddon;
 
 #[derive(Debug, Clone)]
 pub struct InstallPaths {
@@ -26,6 +27,23 @@ impl InstallPaths {
             jsaddons_dir,
             target_dir,
             publish_xml,
+        })
+    }
+
+    pub fn from_catalog_addon(addon: &CatalogAddon) -> Result<Self, InstallerError> {
+        validate_token(&addon.id, "插件 ID")?;
+        validate_token(&addon.version, "插件版本")?;
+        let home = home_dir()?;
+        #[cfg(target_os = "windows")]
+        let relative = "AppData/Roaming/kingsoft/wps/jsaddons";
+        #[cfg(not(target_os = "windows"))]
+        let relative = "Library/Application Support/Kingsoft/WPS Office/jsaddons";
+        let jsaddons_dir = safe_descendant(&home, relative)?;
+        let archive_root = format!("{}_{}", addon.id, addon.version);
+        Ok(Self {
+            target_dir: safe_child(&jsaddons_dir, &archive_root)?,
+            publish_xml: safe_child(&jsaddons_dir, "publish.xml")?,
+            jsaddons_dir,
         })
     }
 

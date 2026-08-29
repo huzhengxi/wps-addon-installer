@@ -10,7 +10,10 @@ use thiserror::Error;
 
 use crate::{
     installer,
-    model::{AddControlSourceInput, ControlSource, PermissionReport, SourceTestReport},
+    model::{
+        AddControlSourceInput, CatalogAddon, CatalogReport, ControlSource, PermissionReport,
+        SourceTestReport,
+    },
 };
 
 const SOURCE_FILE: &str = "control-sources.json";
@@ -25,8 +28,6 @@ pub enum CatalogError {
     InvalidName,
     #[error("未找到指定控件源。")]
     SourceNotFound,
-    #[error("默认控件源不能删除。")]
-    DefaultSourceProtected,
     #[error("无法读取控件源配置：{0}")]
     Storage(#[from] std::io::Error),
     #[error("控件源配置格式无效：{0}")]
@@ -46,7 +47,7 @@ pub enum CatalogError {
 struct SourceIndex {
     schema_version: u32,
     #[serde(default)]
-    addons: Vec<serde_json::Value>,
+    addons: Vec<CatalogAddon>,
 }
 
 fn default_sources() -> Vec<ControlSource> {
@@ -129,7 +130,38 @@ fn fetch_index(url: &str) -> Result<SourceIndex, CatalogError> {
     if index.addons.len() > 500 {
         return Err(CatalogError::Index("单个控件源最多包含 500 个插件。".into()));
     }
+    for addon in &index.addons {
+        validate_addon(addon)?;
+    }
     Ok(index)
+}
+
+fn valid_token(value: &str, max_length: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= max_length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+}
+
+fn validate_addon(addon: &CatalogAddon) -> Result<(), CatalogError> {
+    if !valid_token(&addon.id, 80) || !valid_token(&addon.version, 80) {
+        return Err(CatalogError::Index("插件 ID 和版本只能使用字母、数字、点、连字符或下划线。".into()));
+    }
+    if addon.name.trim().is_empty() || addon.name.chars().count() > 120 {
+        return Err(CatalogError::Index("插件名称不能为空，且最多 120 个字符。".into()));
+    }
+    if addon.addon_type != "et" {
+        return Err(CatalogError::Index("首版仅支持 type 为 et 的 WPS 表格插件。".into()));
+    }
+    validate_url(&addon.download_url)?;
+    if addon.size == 0 || addon.size > 256 * 1024 * 1024 {
+        return Err(CatalogError::Index("插件包大小必须在 1 B 到 256 MB 之间。".into()));
+    }
+    if addon.sha256.len() != 64 || !addon.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(CatalogError::Index("插件包必须提供 64 位 SHA-256 校验值。".into()));
+    }
+    Ok(())
 }
 
 pub fn list_sources(app: &AppHandle) -> Result<Vec<ControlSource>, CatalogError> {
@@ -185,6 +217,53 @@ pub fn test_source(app: &AppHandle, id: &str) -> Result<SourceTestReport, Catalo
     })
 }
 
+/// Reads every enabled source. A broken custom source is isolated to a warning
+/// so it cannot hide plugins offered by the remaining sources.
+pub fn list_catalog_addons(app: &AppHandle) -> Result<CatalogReport, CatalogError> {
+    let sources = load_sources(app)?;
+    let mut addons = Vec::new();
+    let mut warnings = Vec::new();
+
+    for source in sources.into_iter().filter(|source| source.enabled) {
+        match fetch_index(&source.index_url) {
+            Ok(index) => {
+                for mut addon in index.addons {
+                    if addons.iter().any(|existing: &CatalogAddon| existing.id == addon.id) {
+                        warnings.push(format!("已忽略控件源“{}”中与更高优先级来源重名的插件“{}”。", source.name, addon.name));
+                        continue;
+                    }
+                    addon.source_id = source.id.clone();
+                    addon.source_name = source.name.clone();
+                    addons.push(addon);
+                }
+            }
+            Err(error) => warnings.push(format!("控件源“{}”无法同步：{}", source.name, error)),
+        }
+    }
+
+    Ok(CatalogReport { addons, warnings })
+}
+
+pub fn resolve_catalog_addon(
+    app: &AppHandle,
+    source_id: &str,
+    addon_id: &str,
+) -> Result<CatalogAddon, CatalogError> {
+    let sources = load_sources(app)?;
+    let source = source_by_id(&sources, source_id)?;
+    if !source.enabled {
+        return Err(CatalogError::Index("控件源已停用，不能安装其中的插件。".into()));
+    }
+    let mut addon = fetch_index(&source.index_url)?
+        .addons
+        .into_iter()
+        .find(|addon| addon.id == addon_id)
+        .ok_or_else(|| CatalogError::Index("控件源中未找到指定插件。".into()))?;
+    addon.source_id = source.id.clone();
+    addon.source_name = source.name.clone();
+    Ok(addon)
+}
+
 pub fn inspect_permissions(app: &AppHandle) -> Result<PermissionReport, CatalogError> {
     let environment = installer::inspect(app).map_err(|error| CatalogError::Environment(error.to_string()))?;
     let jsaddons_path = environment.js_addons_path;
@@ -227,5 +306,25 @@ mod tests {
         assert!(validate_url("https://example.com/index.json").is_ok());
         assert!(validate_url("http://example.com/index.json").is_err());
         assert!(validate_url("https://example.com/a b").is_err());
+    }
+
+    #[test]
+    fn catalog_addon_requires_safe_download_metadata() {
+        let addon = CatalogAddon {
+            id: "date-picker".into(),
+            name: "日期选择器".into(),
+            addon_type: "et".into(),
+            version: "1.0.1".into(),
+            description: String::new(),
+            platforms: vec!["macos".into()],
+            download_url: "https://example.com/date-picker.7z".into(),
+            sha256: "a".repeat(64),
+            size: 1,
+            published_at: None,
+            release_notes: None,
+            source_id: String::new(),
+            source_name: String::new(),
+        };
+        assert!(validate_addon(&addon).is_ok());
     }
 }

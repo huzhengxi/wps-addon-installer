@@ -1,12 +1,43 @@
 use std::{fs, io::Write, path::Path};
 
 use super::{manifest::AddonManifest, InstallerError};
+use crate::model::CatalogAddon;
 
 pub fn render(manifest: &AddonManifest) -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<jsplugins>\n  <jsplugin name=\"{}\" type=\"{}\" url=\"{}\" version=\"{}\" enable=\"enable_dev\" install=\"null\" customDomain=\"\"/>\n</jsplugins>\n",
         manifest.name, manifest.addon_type, manifest.archive_root, manifest.version
     )
+}
+
+pub fn merge_catalog(existing: Option<&str>, addon: &CatalogAddon, archive_root: &str) -> String {
+    let entry = format!(
+        "  <jsplugin name=\"{}\" type=\"{}\" url=\"{}\" version=\"{}\" enable=\"enable_dev\" install=\"null\" customDomain=\"\"/>\n",
+        addon.id, addon.addon_type, archive_root, addon.version
+    );
+    let retained = existing
+        .map(|content| remove_entry(content, &addon.id))
+        .unwrap_or_else(|| "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<jsplugins>\n</jsplugins>\n".into());
+    retained.replacen("</jsplugins>", &(entry + "</jsplugins>"), 1)
+}
+
+/// Removes just the self-closing WPS entry whose safe name exactly matches.
+/// Other XML is kept byte-for-byte, so external plugins are not overwritten.
+fn remove_entry(content: &str, name: &str) -> String {
+    let needle = format!("<jsplugin name=\"{}\"", name);
+    let mut remaining = content;
+    let mut output = String::with_capacity(content.len());
+    while let Some(start) = remaining.find(&needle) {
+        output.push_str(&remaining[..start]);
+        let after_start = &remaining[start..];
+        let Some(end) = after_start.find("/>") else {
+            output.push_str(after_start);
+            return output;
+        };
+        remaining = &after_start[end + 2..];
+    }
+    output.push_str(remaining);
+    output
 }
 
 pub fn matches(path: &Path, manifest: &AddonManifest) -> Result<bool, InstallerError> {

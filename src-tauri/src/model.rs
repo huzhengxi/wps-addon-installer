@@ -26,6 +26,41 @@ pub struct SourceTestReport {
     pub message: String,
 }
 
+/// A plugin entry supplied by a trusted control-source index.  The source
+/// identity is added locally after the index is fetched; it is not trusted
+/// from the remote document itself.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogAddon {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub addon_type: String,
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub platforms: Vec<String>,
+    pub download_url: String,
+    pub sha256: String,
+    pub size: u64,
+    #[serde(default)]
+    pub published_at: Option<String>,
+    #[serde(default)]
+    pub release_notes: Option<String>,
+    #[serde(skip)]
+    pub source_id: String,
+    #[serde(skip)]
+    pub source_name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogReport {
+    pub addons: Vec<CatalogAddon>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionReport {

@@ -4,8 +4,8 @@ use crate::{
     catalog,
     installer,
     model::{
-        AddControlSourceInput, AppUpdateReport, ControlSource, EnvironmentReport, OperationReport,
-        PermissionReport, SourceTestReport,
+        AddControlSourceInput, AppUpdateReport, CatalogReport, ControlSource, EnvironmentReport,
+        OperationReport, PermissionReport, SourceTestReport,
     },
     updater,
 };
@@ -39,6 +39,29 @@ pub fn set_control_source_enabled(
 #[tauri::command]
 pub fn test_control_source(app: AppHandle, id: String) -> Result<SourceTestReport, String> {
     catalog::test_source(&app, &id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn list_catalog_addons(app: AppHandle) -> Result<CatalogReport, String> {
+    tauri::async_runtime::spawn_blocking(move || catalog::list_catalog_addons(&app))
+        .await
+        .map_err(|error| format!("控件源后台任务执行失败：{error}"))?
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn install_catalog_addon(
+    app: AppHandle,
+    source_id: String,
+    addon_id: String,
+) -> Result<OperationReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let addon = catalog::resolve_catalog_addon(&app, &source_id, &addon_id)
+            .map_err(|error| error.to_string())?;
+        installer::install_catalog_addon(&app, &addon).map_err(command_error)
+    })
+    .await
+    .map_err(|error| format!("插件安装后台任务执行失败：{error}"))?
 }
 
 #[tauri::command]

@@ -10,7 +10,7 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 use thiserror::Error;
 
-use crate::model::{EnvironmentReport, InstallationStatus, OperationReport};
+use crate::model::{CatalogAddon, EnvironmentReport, InstallationStatus, OperationReport};
 use manifest::{AddonManifest, PayloadPaths};
 use paths::InstallPaths;
 
@@ -39,6 +39,10 @@ pub enum InstallerError {
     Archive(String),
     #[error("安装提交失败：{0}")]
     Commit(String),
+    #[error("下载插件包失败：{0}")]
+    Download(String),
+    #[error("下载的插件包 SHA-256 校验失败。")]
+    DownloadHashMismatch,
 }
 
 fn lock_operation() -> Result<std::sync::MutexGuard<'static, ()>, InstallerError> {
@@ -178,7 +182,7 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
         .prefix("wps-addon-installer-")
         .tempdir()
         .map_err(InstallerError::Io)?;
-    archive::extract_and_validate(&payload.archive, extraction.path(), &manifest)?;
+    archive::extract_and_validate(&payload.archive, extraction.path(), &manifest.archive_root)?;
     progress(app, "install", 65, "正在写入加载项文件…");
     transaction::install(
         &paths,
@@ -208,6 +212,78 @@ pub fn install(app: &AppHandle) -> Result<OperationReport, InstallerError> {
     };
     progress(app, "install", 100, "安装完成");
     Ok(report)
+}
+
+/// Installs only a catalog entry previously resolved by the backend. The UI
+/// never passes an archive URL or a filesystem path to this function.
+pub fn install_catalog_addon(app: &AppHandle, addon: &CatalogAddon) -> Result<OperationReport, InstallerError> {
+    let _guard = lock_operation()?;
+    progress(app, "install", 5, "正在检查 WPS 环境…");
+    if !wps::application_exists() {
+        return Err(InstallerError::WpsNotFound(wps::APPLICATION_HINT.into()));
+    }
+    ensure_supported_wps_version()?;
+    let paths = InstallPaths::from_catalog_addon(addon)?;
+    paths.ensure_jsaddons_dir()?;
+    let archive_root = format!("{}_{}", addon.id, addon.version);
+
+    progress(app, "install", 20, "正在下载插件包…");
+    let download = tempfile::Builder::new().prefix("wps-addon-download-").tempfile().map_err(InstallerError::Io)?;
+    download_catalog_archive(&addon.download_url, addon.size, &addon.sha256, download.path())?;
+    progress(app, "install", 45, "正在校验并解压插件包…");
+    let extraction = tempfile::Builder::new().prefix("wps-addon-installer-").tempdir().map_err(InstallerError::Io)?;
+    archive::extract_and_validate(download.path(), extraction.path(), &archive_root)?;
+    progress(app, "install", 65, "正在写入加载项文件…");
+    transaction::install_catalog(&paths, extraction.path().join(&archive_root), addon, &archive_root)?;
+    progress(app, "install", 90, "正在重新打开 WPS…");
+    let restart = wps::restart();
+    let restart_succeeded = restart.is_ok();
+    let mut warnings = Vec::new();
+    if let Err(error) = restart {
+        warnings.push(format!("插件已安装，但 WPS 重启失败：{error}"));
+    }
+    progress(app, "install", 100, "安装完成");
+    Ok(OperationReport {
+        action: "install".into(),
+        message: format!("{} 已安装。", addon.name),
+        restart_attempted: true,
+        restart_succeeded,
+        warnings,
+    })
+}
+
+fn download_catalog_archive(url: &str, expected_size: u64, expected_hash: &str, destination: &std::path::Path) -> Result<(), InstallerError> {
+    use std::io::{Read, Write};
+    use sha2::{Digest, Sha256};
+    let mut response = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(90))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()
+        .map_err(|error| InstallerError::Download(error.to_string()))?
+        .get(url)
+        .send()
+        .map_err(|error| InstallerError::Download(error.to_string()))?
+        .error_for_status()
+        .map_err(|error| InstallerError::Download(error.to_string()))?;
+    if response.content_length().is_some_and(|size| size != expected_size) {
+        return Err(InstallerError::Download("服务器返回的文件大小与控件源声明不一致。".into()));
+    }
+    let mut file = std::fs::File::create(destination)?;
+    let mut digest = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; 32 * 1024];
+    loop {
+        let count = response.read(&mut buffer).map_err(InstallerError::Io)?;
+        if count == 0 { break; }
+        total = total.saturating_add(count as u64);
+        if total > expected_size { return Err(InstallerError::Download("下载文件超过控件源声明大小。".into())); }
+        digest.update(&buffer[..count]);
+        file.write_all(&buffer[..count])?;
+    }
+    file.sync_all()?;
+    if total != expected_size { return Err(InstallerError::Download("下载文件大小与控件源声明不一致。".into())); }
+    if hex::encode(digest.finalize()) != expected_hash.to_ascii_lowercase() { return Err(InstallerError::DownloadHashMismatch); }
+    Ok(())
 }
 
 pub fn uninstall(app: &AppHandle) -> Result<OperationReport, InstallerError> {

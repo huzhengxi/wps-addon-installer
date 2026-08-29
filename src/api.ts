@@ -71,6 +71,27 @@ export interface SourceTestReport {
   message: string;
 }
 
+export interface CatalogAddon {
+  id: string;
+  name: string;
+  type: "et";
+  version: string;
+  description: string;
+  platforms: string[];
+  downloadUrl: string;
+  sha256: string;
+  size: number;
+  publishedAt: string | null;
+  releaseNotes: string | null;
+  sourceId: string;
+  sourceName: string;
+}
+
+export interface CatalogReport {
+  addons: CatalogAddon[];
+  warnings: string[];
+}
+
 export interface PermissionReport {
   wpsFound: boolean;
   wpsPathReadable: boolean;
@@ -94,5 +115,8 @@ export const addControlSource = (input: Pick<ControlSource, "name" | "indexUrl">
 export const setControlSourceEnabled = (id: string, enabled: boolean) =>
   invoke<ControlSource[]>("set_control_source_enabled", { id, enabled });
 export const testControlSource = (id: string) => invoke<SourceTestReport>("test_control_source", { id });
+export const listCatalogAddons = () => invoke<CatalogReport>("list_catalog_addons");
+export const installCatalogAddon = (sourceId: string, addonId: string) =>
+  invoke<OperationReport>("install_catalog_addon", { sourceId, addonId });
 export const inspectPermissions = () => invoke<PermissionReport>("inspect_permissions");
 export const openPermissionSettings = () => invoke<void>("open_permission_settings");

@@ -13,6 +13,8 @@ pub fn run() {
             commands::add_control_source,
             commands::set_control_source_enabled,
             commands::test_control_source,
+            commands::list_catalog_addons,
+            commands::install_catalog_addon,
             commands::inspect_permissions,
             commands::open_permission_settings,
             commands::install_addon,
