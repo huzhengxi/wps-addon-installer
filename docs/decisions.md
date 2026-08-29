@@ -12,6 +12,7 @@
 8. **第一版卸载不清理 `publish.xml`。** 这与当前 `uninstall.sh` 的有效代码一致。
 9. **WPS 重启需要确认。** GUI 必须保护用户未保存的文档。
 10. **运行时不依赖源码工程、Node.js、Homebrew 或系统 7z。**
+11. **应用自动更新使用 Tauri Updater + GitHub Releases。** 更新包用 minisign 签名，公钥内置，私钥只存 GitHub Secrets；`latest.json` 由发布流水线从签名资产生成。暂不引入镜像 endpoint，避免过期清单遮蔽新版本。
 
 ## P0 技术验证后确定
 
@@ -28,4 +29,3 @@
 3. 是否允许用户选择“完成后不重启 WPS”。
 
 在第一版实现中不得提前改变这些行为，否则就不再是按当前脚本逻辑实现。
-

@@ -38,7 +38,15 @@
 - [ ] 增加“仅重启 WPS”和“打开安装目录”辅助操作；
 - [ ] 支持自动发现非标准 WPS 安装位置；
 - [ ] 评估 universal binary，减少用户选择架构的成本；
-- [ ] 设计应用自动更新：可信更新源、签名密钥、更新清单和回滚策略。
+- [x] 设计应用自动更新：Tauri Updater + GitHub Releases + minisign 签名；首个带更新器的版本发布后，后续版本可自动更新。
+
+## 软件更新模块未完成事项
+
+- [x] 配置 GitHub Secrets：`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`；
+- [x] 本地验证 macOS 签名产物：`npm run package:zip -- --target x86_64-apple-darwin` 产出 `WPSAddonInstaller.app.tar.gz` 和 `.sig`。
+- [ ] 提交改动并发布首个 updater 版本：`git commit` + `python3 scripts/release_version.py`，核对 GitHub Actions 与 Release 资产、`latest.json`；
+- [ ] 验证真实自动更新：发布更高版本后，在旧版本中确认检查、下载、验签、安装并重启；
+- [ ] macOS Apple Developer ID 签名与公证接入发布 workflow。
 
 ## P2：扩展能力
 

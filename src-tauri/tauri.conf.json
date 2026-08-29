@@ -15,7 +15,7 @@
         "label": "main",
         "title": "WPS 加载项安装器",
         "width": 620,
-        "height": 560,
+        "height": 620,
         "resizable": false,
         "fullscreen": false,
         "devtools": false
@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": [
       "app",
       "nsis",
@@ -44,6 +45,14 @@
     },
     "macOS": {
       "minimumSystemVersion": "11.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNCNzZFQzRFNThBMTBCREEKUldUYUM2RllUdXgyTzJkeExQM0k0RVFwazVEaVQ3NElDOWJ3M2NvdFFuLy9PaXA4Mm5CRHdZbWwK",
+      "endpoints": [
+        "https://github.com/huzhengxi/wps-addon-installer/releases/latest/download/latest.json"
+      ]
     }
   }
 }

@@ -2,7 +2,8 @@ use tauri::AppHandle;
 
 use crate::{
     installer,
-    model::{EnvironmentReport, OperationReport},
+    model::{AppUpdateReport, EnvironmentReport, OperationReport},
+    updater,
 };
 
 fn command_error(error: installer::InstallerError) -> String {
@@ -33,4 +34,14 @@ pub async fn uninstall_addon(app: AppHandle) -> Result<OperationReport, String> 
 #[tauri::command]
 pub fn restart_wps(app: AppHandle) -> Result<OperationReport, String> {
     installer::restart_only(&app).map_err(command_error)
+}
+
+#[tauri::command]
+pub async fn check_app_update(app: AppHandle) -> Result<AppUpdateReport, String> {
+    updater::check(app).await
+}
+
+#[tauri::command]
+pub async fn install_app_update_and_restart(app: AppHandle) -> Result<bool, String> {
+    updater::install_and_restart(app).await
 }

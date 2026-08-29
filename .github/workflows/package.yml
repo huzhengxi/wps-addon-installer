@@ -20,9 +20,11 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  # macOS produces a portable .app bundle (resources embedded inside the
-  # .app) and is zipped directly. Both arm64 and x64 build on macos-15.
   package-macos-arm64:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos-arm64'
     runs-on: macos-15
@@ -38,27 +40,33 @@ jobs:
           shared-key: macos-rust
       - run: npm ci
       - run: npm run check
-      - run: npm run package:zip -- --target aarch64-apple-darwin
-      - name: Locate zip
-        id: asset
+      - name: Read version
+        id: ver
+        shell: bash
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build signed macOS app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run package:zip -- --target aarch64-apple-darwin
+      - name: Prepare macOS arm64 assets
         shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p release-assets
           zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_arm64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS arm64 zip not found"; exit 1; }
-          echo "path=$zip" >> "$GITHUB_OUTPUT"
+          cp "$zip" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_arm64.zip"
+          tar_gz=$(find src-tauri/target -path '*bundle/macos/*.app.tar.gz' -type f | head -n1)
+          [ -n "$tar_gz" ] || { echo "macOS arm64 updater artifact not found"; exit 1; }
+          [ -f "$tar_gz.sig" ] || { echo "macOS arm64 updater signature not found"; exit 1; }
+          cp "$tar_gz" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_arm64.app.tar.gz"
+          cp "$tar_gz.sig" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_arm64.app.tar.gz.sig"
       - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-macos-arm64
-          path: ${{ steps.asset.outputs.path }}
+          path: release-assets/*
           if-no-files-found: error
-      - name: Upload to release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes "${{ steps.asset.outputs.path }}" \
-            || gh release upload "$GITHUB_REF_NAME" --clobber "${{ steps.asset.outputs.path }}"
 
   package-macos-x64:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos-x64'
@@ -77,30 +85,34 @@ jobs:
           shared-key: macos-rust
       - run: npm ci
       - run: npm run check
-      - run: npm run package:zip -- --target x86_64-apple-darwin
-      - name: Locate zip
-        id: asset
+      - name: Read version
+        id: ver
+        shell: bash
+        run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build signed macOS app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run package:zip -- --target x86_64-apple-darwin
+      - name: Prepare macOS x64 assets
         shell: bash
         run: |
+          set -euo pipefail
+          mkdir -p release-assets
           zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_x64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS x64 zip not found"; exit 1; }
-          echo "path=$zip" >> "$GITHUB_OUTPUT"
+          cp "$zip" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_x64.zip"
+          tar_gz=$(find src-tauri/target -path '*bundle/macos/*.app.tar.gz' -type f | head -n1)
+          [ -n "$tar_gz" ] || { echo "macOS x64 updater artifact not found"; exit 1; }
+          [ -f "$tar_gz.sig" ] || { echo "macOS x64 updater signature not found"; exit 1; }
+          cp "$tar_gz" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_x64.app.tar.gz"
+          cp "$tar_gz.sig" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_x64.app.tar.gz.sig"
       - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-macos-x64
-          path: ${{ steps.asset.outputs.path }}
+          path: release-assets/*
           if-no-files-found: error
-      - name: Upload to release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes "${{ steps.asset.outputs.path }}" \
-            || gh release upload "$GITHUB_REF_NAME" --clobber "${{ steps.asset.outputs.path }}"
 
-  # Windows has no portable executable bundle (Tauri only offers msi/nsis),
-  # so fall back to the nsis installer and ship it at the zip root.
   package-windows:
     if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     runs-on: windows-2022
@@ -115,30 +127,60 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npm run check
-      - run: npm run package:windows
       - name: Read version
         id: ver
         shell: bash
         run: echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
-      - name: Package installer into zip
-        id: asset
+      - name: Build signed Windows installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run package:windows
+      - name: Prepare Windows assets
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           $installer = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *.exe -Recurse | Select-Object -First 1
           if (-not $installer) { Write-Error "NSIS installer not found"; exit 1 }
-          $zip = "wps-addon-installer_windows_${{ steps.ver.outputs.version }}_x64.zip"
+          $dest = "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_windows_x64-setup.exe"
+          Copy-Item $installer.FullName $dest
+          $sigPath = "$($installer.FullName).sig"
+          if (-not (Test-Path $sigPath)) { Write-Error "NSIS updater signature not found"; exit 1 }
+          Copy-Item $sigPath "$dest.sig"
+          $zip = "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_windows_x64.zip"
           Compress-Archive -Path $installer.FullName -DestinationPath $zip
-          Add-Content -Path $env:GITHUB_OUTPUT -Value "path=$zip"
       - uses: actions/upload-artifact@v6
         with:
           name: wps-addon-installer-windows-x64
-          path: ${{ steps.asset.outputs.path }}
+          path: release-assets/*
           if-no-files-found: error
-      - name: Upload to release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+  publish-release:
+    name: Publish release with updater manifest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    needs: [package-macos-arm64, package-macos-x64, package-windows]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: wps-addon-installer-*
+          path: release-assets
+          merge-multiple: true
+      - name: List release assets
+        shell: bash
+        run: ls -la release-assets
+      - name: Generate updater manifest
+        shell: bash
+        run: node scripts/generate-updater-manifest.mjs release-assets "$GITHUB_REF_NAME" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" release-assets/latest.json
+        run: node scripts/generate-updater-manifest.mjs release-assets "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" release-assets/latest.json
+      - name: Upload GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes "${{ steps.asset.outputs.path }}" \
-            || gh release upload "$GITHUB_REF_NAME" --clobber "${{ steps.asset.outputs.path }}"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes release-assets/* \
+            || gh release upload "$GITHUB_REF_NAME" --clobber release-assets/*

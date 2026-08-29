@@ -3,8 +3,13 @@ import {
   type EnvironmentReport,
   type InstallationStatus,
   type OperationProgress,
+  type AppUpdateReport,
+  type AppUpdateProgress,
   installAddon,
+  checkAppUpdate,
   inspectEnvironment,
+  installAppUpdateAndRestart,
+  listenToAppUpdateProgress,
   listenToOperationProgress,
   uninstallAddon
 } from "./api";
@@ -26,9 +31,16 @@ const confirmationTitle = document.querySelector<HTMLElement>("#confirmation-tit
 const confirmationMessage = document.querySelector<HTMLElement>("#confirmation-message")!;
 const confirmationCancel = document.querySelector<HTMLButtonElement>("#confirmation-cancel")!;
 const confirmationConfirm = document.querySelector<HTMLButtonElement>("#confirmation-confirm")!;
+const updateButton = document.querySelector<HTMLButtonElement>("#update-button")!;
+const updateStatus = document.querySelector<HTMLElement>("#update-status")!;
+const updateNotes = document.querySelector<HTMLElement>("#update-notes")!;
+const updateProgressContainer = document.querySelector<HTMLElement>("#update-progress")!;
+const updateProgressBar = document.querySelector<HTMLElement>("#update-progress-bar")!;
 
 let latestReport: EnvironmentReport | undefined;
 let confirmationResolver: ((confirmed: boolean) => void) | undefined;
+let latestUpdate: AppUpdateReport | undefined;
+let updateBusy = false;
 
 const isWindows = navigator.userAgent.includes("Windows");
 const wpsNotFoundLabel = isWindows
@@ -47,10 +59,13 @@ const labels: Record<InstallationStatus, string> = {
   unsupported: "环境不支持"
 };
 
-function setBusy(busy: boolean, action?: "install" | "uninstall") {
+type OperationAction = "install" | "uninstall";
+
+function setBusy(busy: boolean, action?: OperationAction) {
   installButton.disabled = busy || !latestReport?.wpsVersionSupported;
   uninstallButton.disabled = busy;
   copyButton.disabled = busy;
+  updateButton.disabled = busy || updateBusy;
   installButton.setAttribute("aria-busy", String(busy && action === "install"));
   uninstallButton.setAttribute("aria-busy", String(busy && action === "uninstall"));
   installButton.classList.toggle("is-loading", busy && action === "install");
@@ -59,6 +74,18 @@ function setBusy(busy: boolean, action?: "install" | "uninstall") {
     busy && action === "install" ? "正在安装…" : "安装 / 修复";
   uninstallButton.querySelector<HTMLElement>(".button-label")!.textContent =
     busy && action === "uninstall" ? "正在卸载…" : "卸载";
+}
+
+function setUpdateBusy(busy: boolean) {
+  updateBusy = busy;
+  updateButton.disabled = busy || installButton.disabled;
+  updateButton.setAttribute("aria-busy", String(busy));
+  updateButton.classList.toggle("is-loading", busy);
+  updateButton.querySelector<HTMLElement>(".button-label")!.textContent = busy
+    ? "正在更新"
+    : latestUpdate?.update
+      ? `更新到 v${latestUpdate.update.version}`
+      : "检查更新";
 }
 
 function updateProgress(update: OperationProgress) {
@@ -85,23 +112,68 @@ function resetProgress(action: "install" | "uninstall") {
   });
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function updateAppProgress(progress: AppUpdateProgress) {
+  const percent = progress.percent ?? Math.max(0, Math.min(100, progress.downloaded));
+  updateProgressContainer.hidden = false;
+  updateProgressContainer.setAttribute("aria-valuenow", String(percent));
+  updateProgressBar.style.width = `${percent}%`;
+  updateStatus.textContent = progress.total
+    ? `${progress.message} ${percent}%（${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}）`
+    : `${progress.message} ${formatBytes(progress.downloaded)}`;
+}
+
 function closeConfirmation(confirmed: boolean) {
   confirmationDialog.hidden = true;
   confirmationResolver?.(confirmed);
   confirmationResolver = undefined;
 }
 
-function confirmOperation(action: "install" | "uninstall") {
-  confirmationTitle.textContent = action === "install" ? "安装日期选择器？" : "卸载日期选择器？";
-  confirmationMessage.textContent = action === "install"
-    ? "安装或修复会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
-    : "卸载会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。";
+function confirmOperation(action: OperationAction | "app-update") {
+  confirmationTitle.textContent =
+    action === "install" ? "安装日期选择器？" : action === "uninstall" ? "卸载日期选择器？" : "更新安装器？";
+  confirmationMessage.textContent =
+    action === "install"
+      ? "安装或修复会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
+      : action === "uninstall"
+        ? "卸载会关闭并重新打开 WPS。请先保存所有正在编辑的 WPS 文档。"
+        : "即将下载并安装新版安装器，安装完成后会重启本应用；已部署的 WPS 加载项不会被自动修改。";
   confirmationDialog.hidden = false;
-  confirmationConfirm.textContent = action === "install" ? "开始安装" : "确认卸载";
+  confirmationConfirm.textContent =
+    action === "install" ? "开始安装" : action === "uninstall" ? "确认卸载" : "开始更新";
   confirmationConfirm.focus();
   return new Promise<boolean>((resolve) => {
     confirmationResolver = resolve;
   });
+}
+
+async function checkUpdates(silent: boolean): Promise<boolean> {
+  if (updateBusy) return Boolean(latestUpdate?.update);
+  setUpdateBusy(true);
+  updateStatus.textContent = "正在检查应用更新…";
+  updateNotes.hidden = true;
+  try {
+    latestUpdate = await checkAppUpdate();
+    if (latestUpdate.update) {
+      updateStatus.textContent = `当前 v${latestUpdate.currentVersion}，可更新到 v${latestUpdate.update.version}。`;
+      updateNotes.textContent = latestUpdate.update.notes ?? "";
+      updateNotes.hidden = !latestUpdate.update.notes;
+    } else {
+      updateStatus.textContent = `当前 v${latestUpdate.currentVersion}，已是最新版本。`;
+      updateNotes.hidden = true;
+    }
+    setUpdateBusy(false);
+    return Boolean(latestUpdate.update);
+  } catch (error) {
+    updateStatus.textContent = silent ? "自动检查更新未完成，可稍后手动重试。" : readableError(error);
+    setUpdateBusy(false);
+    return false;
+  }
 }
 
 function setReport(report: EnvironmentReport) {
@@ -188,6 +260,34 @@ async function run(action: "install" | "uninstall") {
   }
 }
 
+async function runAppUpdate() {
+  if (updateBusy) return;
+  if (!latestUpdate?.update) {
+    void checkUpdates(false);
+    return;
+  }
+  if (!await confirmOperation("app-update")) return;
+
+  setUpdateBusy(true);
+  updateStatus.textContent = "正在准备应用更新…";
+  updateNotes.hidden = true;
+  let unlisten: (() => void) | undefined;
+  try {
+    unlisten = await listenToAppUpdateProgress(updateAppProgress);
+    const installed = await installAppUpdateAndRestart();
+    if (!installed) {
+      updateStatus.textContent = "已是最新版本。";
+  updateProgressContainer.hidden = true;
+    }
+  } catch (error) {
+    updateStatus.textContent = readableError(error);
+  updateProgressContainer.hidden = true;
+  } finally {
+    unlisten?.();
+    setUpdateBusy(false);
+  }
+}
+
 confirmationCancel.addEventListener("click", () => closeConfirmation(false));
 confirmationConfirm.addEventListener("click", () => closeConfirmation(true));
 confirmationDialog.addEventListener("click", (event) => {
@@ -198,6 +298,7 @@ document.addEventListener("keydown", (event) => {
 });
 installButton.addEventListener("click", () => void run("install"));
 uninstallButton.addEventListener("click", () => void run("uninstall"));
+updateButton.addEventListener("click", () => void runAppUpdate());
 copyButton.addEventListener("click", async () => {
   const text = JSON.stringify(latestReport ?? { error: "尚未获取诊断信息" }, null, 2);
   try {
@@ -209,3 +310,4 @@ copyButton.addEventListener("click", async () => {
 });
 
 void refresh();
+window.setTimeout(() => void checkUpdates(true), 1500);

@@ -88,7 +88,14 @@ npm run package:linux    # Linux：AppImage、DEB
 - 应用内携带 `wps-addon-build` 和 `wps-addon-publish`；
 - 不依赖当前源码工程、Node.js、Homebrew 或系统 `7z`。
 
-Linux、在线升级、多加载项管理和应用自动更新暂不纳入第一版。
+ Linux、在线加载项升级和多加载项管理暂不纳入第一版；应用自动更新已通过 Tauri Updater + GitHub Releases 实现。
+## 软件更新
+
+应用内置 Tauri Updater，启动后会自动检查 GitHub Release 上的 `latest.json`。更新包使用 minisign 签名验证，公钥固定在 [tauri.conf.json](./src-tauri/tauri.conf.json) 中，私钥只存放在 GitHub Secrets。
+
+用户确认后才会下载并安装更新；macOS 替换 `.app` 后重启，Windows 运行 NSIS 安装器后重启。更新只更新安装器本身，不会自动修改已部署到 WPS 的加载项；若内置加载项版本更新，更新后通过“安装 / 修复”重新部署。
+
+首个包含更新器的版本发布前，老版本无法自动更新，需要手动下载一次。macOS 未完成 Apple Developer ID 签名与公证前，首次安装仍可能有 Gatekeeper 提示，但不影响检查和安装更新。
 
 ## 关键发现
 
@@ -111,4 +118,3 @@ Linux、在线升级、多加载项管理和应用自动更新暂不纳入第一
 - [Tauri v2：嵌入额外资源](https://v2.tauri.app/develop/resources/)
 - [Tauri v2：前端调用 Rust](https://v2.tauri.app/develop/calling-rust/)
 - [Tauri v2：Capabilities](https://v2.tauri.app/security/capabilities/)
-

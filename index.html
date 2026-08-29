@@ -44,6 +44,30 @@
         </div>
       </section>
 
+      <section class="update-panel" aria-label="软件更新">
+        <div class="update-copy">
+          <p class="label">软件更新</p>
+          <p id="update-status">当前版本尚未检查</p>
+          <p id="update-notes" class="update-notes" hidden></p>
+        </div>
+        <button id="update-button" class="secondary" type="button">
+          <span class="button-spinner" aria-hidden="true"></span>
+          <span class="button-label">检查更新</span>
+        </button>
+      </section>
+      <div
+        id="update-progress"
+        class="update-progress"
+        role="progressbar"
+        aria-label="应用更新进度"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        hidden
+      >
+        <div id="update-progress-bar"></div>
+      </div>
+
       <section class="actions" aria-label="加载项操作">
         <button id="install-button" class="primary" type="button">
           <span class="button-spinner" aria-hidden="true"></span>

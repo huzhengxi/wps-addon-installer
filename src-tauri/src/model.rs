@@ -37,3 +37,18 @@ pub struct OperationReport {
     pub restart_succeeded: bool,
     pub warnings: Vec<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateReport {
+    pub current_version: String,
+    pub update: Option<AppUpdateInfo>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateInfo {
+    pub version: String,
+    pub notes: Option<String>,
+    pub pub_date: Option<String>,
+}
