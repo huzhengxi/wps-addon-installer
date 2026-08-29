@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -22,10 +23,21 @@ SEMVER = re.compile(
 RELEASE_VERSION = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
+def command_environment() -> dict[str, str]:
+    """Prevent release commands from unexpectedly opening an editor."""
+    return {
+        **os.environ,
+        "GIT_EDITOR": "true",
+        "GIT_SEQUENCE_EDITOR": "true",
+        "GIT_MERGE_AUTOEDIT": "no",
+    }
+
+
 def run(*command: str, capture_output: bool = False) -> str:
     result = subprocess.run(
         command,
         cwd=ROOT,
+        env=command_environment(),
         check=True,
         text=True,
         capture_output=capture_output,
@@ -63,12 +75,16 @@ def ensure_clean_worktree() -> None:
 
 def ensure_new_tag(tag: str) -> None:
     if subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"], cwd=ROOT
+        ["git", "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}"],
+        cwd=ROOT,
+        env=command_environment(),
     ).returncode == 0:
         fail(f"本地 tag {tag} 已存在。")
 
     if subprocess.run(
-        ["git", "ls-remote", "--exit-code", "--tags", "origin", f"refs/tags/{tag}"], cwd=ROOT
+        ["git", "ls-remote", "--exit-code", "--tags", "origin", f"refs/tags/{tag}"],
+        cwd=ROOT,
+        env=command_environment(),
     ).returncode == 0:
         fail(f"远端 tag {tag} 已存在。")
 

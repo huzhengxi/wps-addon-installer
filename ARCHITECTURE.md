@@ -89,7 +89,7 @@ Rust 后端是唯一允许修改文件系统的组件。所有操作都由 `addo
 - `archive`：解压到系统临时目录并防止路径穿越；
 - `transaction`：先暂存再替换，失败时恢复原加载项及 `publish.xml`；
 - `publish_xml`：生成与 `install.sh` 等价的单加载项 XML，并原子替换；
-- `wps`：检测 `/Applications/wpsoffice.app`、结束 `wpsoffice`、等待并重新打开；
+- `wps`：检测 WPS 安装与版本、结束并重新打开（macOS：`/Applications/wpsoffice.app` + `plutil/pgrep/pkill/open`；Windows：注册表 `InstallRoot` / `%LOCALAPPDATA%` 扫描 + `tasklist/taskkill` 直接拉起启动器）；
 - `commands`：向 UI 暴露有限用例，不暴露通用文件或 shell 能力。
 
 ### 3.3 解压策略
@@ -198,13 +198,27 @@ Rust 后端是唯一允许修改文件系统的组件。所有操作都由 `addo
 
 默认日志只记录阶段、错误码和经过脱敏的相对路径，不记录用户主目录全路径。UI 提供“复制诊断信息”，不自动上传数据。
 
+### 3.4 平台差异
+
+| 项目 | macOS | Windows |
+|---|---|---|
+| jsaddons 目录 | `$HOME/Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons` | `%USERPROFILE%/AppData/Roaming/kingsoft/wps/jsaddons` |
+| 主目录来源 | `$HOME` | `%USERPROFILE%` |
+| 安装探测 | 目录存在性 | 注册表 `HKCU/HKLM\Software\Kingsoft\Office\6.0\Common > InstallRoot`，回退扫描 `%LOCALAPPDATA%\Kingsoft\WPS Office\<版本>\office6` |
+| 版本读取 | `Info.plist` 的 `CFBundleShortVersionString` | `office6` 上级目录名（如 `12.1.0.19382`） |
+| 最低版本 | `12.1.26055` | `11.8.2.8808` |
+| 进程控制 | `pgrep/pkill wpsoffice`、`open -a` | `tasklist/taskkill`（`wpsoffice.exe, wps.exe, et.exe, wpp.exe`），直接拉起 `office6` 启动器 |
+
+平台差异集中在 `installer/wps/{imp_macos,imp_windows}.rs` 与清单的 `wps.windows.jsAddonsRelativeToHome`；安装、卸载、事务回滚和 XML 逻辑完全共享。
+
 ## 10. 构建与发布
 
-第一版分别构建 macOS arm64 和 x86_64；确认所有 Rust 依赖均支持两种架构后，再考虑 universal binary。交付至少包含 `.dmg`，签名和 notarization 在正式分发前完成。
+第一版分别构建 macOS arm64 和 x86_64；确认所有 Rust 依赖均支持两种架构后，再考虑 universal binary。交付至少包含 `.dmg`，签名和 notarization 在正式分发前完成。Windows 交付 `.exe`（NSIS）安装包。
 
 测试分三层：
 
 - 单元测试：路径防护、清单、XML、状态判定；
 - 集成测试：临时 HOME + 假 WPS 目录，覆盖安装、覆盖、回滚、卸载和幂等；
-- macOS 手工验收：Intel/Apple Silicon 各一次，真实 WPS 安装、重启和 Ribbon 展示。
+- macOS 手工验收：Intel/Apple Silicon 各一次，真实 WPS 安装、重启和 Ribbon 展示；
+- Windows 手工验收：干净用户环境安装、覆盖、卸载和 WPS 重启。
 

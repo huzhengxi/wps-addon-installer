@@ -33,6 +33,14 @@ pub struct WpsManifest {
     pub bundle_id: String,
     pub application_path: String,
     pub js_addons_relative_to_home: String,
+    #[serde(default)]
+    pub windows: Option<WindowsWpsManifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowsWpsManifest {
+    pub js_addons_relative_to_home: String,
 }
 
 #[derive(Debug, Clone)]
@@ -114,9 +122,21 @@ impl AddonManifest {
         }
         if self.wps.bundle_id != "com.kingsoft.wpsoffice.mac"
             || self.wps.application_path != "/Applications/wpsoffice.app"
-            || self.wps.js_addons_relative_to_home.contains("..")
+            || validate_relative_path(&self.wps.js_addons_relative_to_home).is_err()
         {
             return Err(InstallerError::PayloadInvalid("WPS 路径配置无效。".into()));
+        }
+        if cfg!(target_os = "windows") {
+            let Some(windows) = &self.wps.windows else {
+                return Err(InstallerError::PayloadInvalid(
+                    "资源清单缺少 Windows 加载项目录配置。".into(),
+                ));
+            };
+            if validate_relative_path(&windows.js_addons_relative_to_home).is_err() {
+                return Err(InstallerError::PayloadInvalid(
+                    "WPS Windows 路径配置无效。".into(),
+                ));
+            }
         }
         for name in &self.legacy_directory_names {
             validate_token(name, "兼容目录")?;
@@ -138,6 +158,17 @@ pub fn validate_token(value: &str, label: &str) -> Result<(), InstallerError> {
         return Err(InstallerError::PayloadInvalid(format!(
             "{label} 含有不安全字符。"
         )));
+    }
+    Ok(())
+}
+
+/// 校验 `/` 分隔的相对路径：每一段都必须是安全 token，禁止 `..` 或空段。
+pub fn validate_relative_path(value: &str) -> Result<(), InstallerError> {
+    if value.is_empty() {
+        return Err(InstallerError::PayloadInvalid("相对路径不能为空。".into()));
+    }
+    for segment in value.split('/') {
+        validate_token(segment, "相对路径片段")?;
     }
     Ok(())
 }
@@ -179,5 +210,16 @@ mod tests {
             );
         }
         assert!(validate_token("date-picker_1.0.1", "test").is_ok());
+    }
+
+    #[test]
+    fn relative_path_validation_rejects_escape_and_empty_segments() {
+        assert!(validate_relative_path("AppData/Roaming/kingsoft/wps/jsaddons").is_ok());
+        assert!(validate_relative_path("Library/test").is_ok());
+        assert!(validate_relative_path("").is_err());
+        assert!(validate_relative_path("a//b").is_err());
+        assert!(validate_relative_path("a/../b").is_err());
+        assert!(validate_relative_path("C:\\Users\\x").is_err());
+        assert!(validate_relative_path("/absolute").is_err());
     }
 }

@@ -1,36 +1,12 @@
 use std::{path::Path, process::Command, thread, time::Duration};
 
+use super::Version;
+
+pub const MINIMUM_SUPPORTED_VERSION: &str = "12.1.26055";
+pub const APPLICATION_HINT: &str = "/Applications/wpsoffice.app";
+
 const APPLICATION_PATH: &str = "/Applications/wpsoffice.app";
 const INFO_PLIST_PATH: &str = "/Applications/wpsoffice.app/Contents/Info.plist";
-pub const MINIMUM_SUPPORTED_VERSION: &str = "12.1.26055";
-
-#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
-struct Version(Vec<u32>);
-
-impl Version {
-    fn parse(value: &str) -> Result<Self, String> {
-        let mut components = value
-            .trim()
-            .split('.')
-            .map(|component| {
-                if component.is_empty() || !component.bytes().all(|byte| byte.is_ascii_digit()) {
-                    return Err(format!("版本号格式无效：{value}"));
-                }
-                component
-                    .parse::<u32>()
-                    .map_err(|_| format!("版本号数字超出范围：{value}"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        if components.is_empty() {
-            return Err("版本号为空。".into());
-        }
-        while components.len() > 1 && components.last() == Some(&0) {
-            components.pop();
-        }
-        Ok(Self(components))
-    }
-}
 
 pub fn application_exists() -> bool {
     Path::new(APPLICATION_PATH).is_dir()
@@ -90,27 +66,4 @@ pub fn restart() -> Result<(), std::io::Error> {
         return Err(std::io::Error::other("无法重新打开 WPS。"));
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn version_must_be_strictly_greater_than_the_minimum() {
-        assert!(!version_is_supported("12.1.26055").unwrap());
-        assert!(version_is_supported("12.1.26056").unwrap());
-        assert!(version_is_supported("12.2.0").unwrap());
-    }
-
-    #[test]
-    fn version_comparison_ignores_trailing_zero_components() {
-        assert!(!version_is_supported("12.1.26055.0").unwrap());
-        assert!(version_is_supported("12.1.26055.1").unwrap());
-    }
-
-    #[test]
-    fn version_rejects_non_numeric_components() {
-        assert!(version_is_supported("12.1.beta").is_err());
-    }
 }
