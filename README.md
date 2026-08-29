@@ -97,6 +97,14 @@ cd src-tauri && cargo check
 npm run tauri -- build
 ```
 
+本机没有更新签名私钥时，可生成仅供本地测试的未签名 ZIP：
+
+```bash
+npm run package:zip:local
+```
+
+正式发布的 updater 包必须使用与配置中公钥配对的 `TAURI_SIGNING_PRIVATE_KEY` 签名。
+
 分别打包目标平台：
 
 ```bash

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "WPS 插件管理器",
+  "productName": "WPSAddonManager",
   "version": "0.0.11",
   "identifier": "com.liqiong.wps-addon-manager",
   "build": {

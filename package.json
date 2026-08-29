@@ -30,6 +30,7 @@
     "tauri": "node ./node_modules/@tauri-apps/cli/tauri.js",
     "check": "npm run build",
     "package:zip": "node scripts/package-macos-zip.mjs",
+    "package:zip:local": "node scripts/package-macos-zip.mjs --no-sign",
     "package:macos": "node scripts/package-platform.mjs macos",
     "package:windows": "node scripts/package-platform.mjs windows",
     "package:linux": "node scripts/package-platform.mjs linux",
