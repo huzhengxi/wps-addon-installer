@@ -12,7 +12,6 @@
 wps-addon-manager/
 ├── README.md
 ├── ARCHITECTURE.md
-├── TODO.md
 ├── docs/
 │   ├── decisions.md
 │   └── install-contract.md

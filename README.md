@@ -126,7 +126,6 @@ docs/ui-design-v2.md 信息架构、交互与控件源契约
 
 ## 相关文档
 
-- [待办与验收清单](TODO.md)
 - [UI 与控件源设计](docs/ui-design-v2.md)
 - [用户手册目录](docs/user-guide/index.md)
 
