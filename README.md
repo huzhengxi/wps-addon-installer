@@ -126,7 +126,6 @@ docs/ui-design-v2.md 信息架构、交互与控件源契约
 
 ## 相关文档
 
-- [UI 与控件源设计](docs/ui-design-v2.md)
 - [用户手册目录](docs/user-guide/index.md)
 
 ## 许可证与反馈
