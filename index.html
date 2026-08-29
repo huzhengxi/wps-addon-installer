@@ -44,29 +44,6 @@
         </div>
       </section>
 
-      <section class="update-panel" aria-label="软件更新">
-        <div class="update-copy">
-          <p class="label">软件更新</p>
-          <p id="update-status">当前版本尚未检查</p>
-          <p id="update-notes" class="update-notes" hidden></p>
-        </div>
-        <button id="update-button" class="secondary" type="button">
-          <span class="button-spinner" aria-hidden="true"></span>
-          <span class="button-label">检查更新</span>
-        </button>
-      </section>
-      <div
-        id="update-progress"
-        class="update-progress"
-        role="progressbar"
-        aria-label="应用更新进度"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        aria-valuenow="0"
-        hidden
-      >
-        <div id="update-progress-bar"></div>
-      </div>
 
       <section class="actions" aria-label="加载项操作">
         <button id="install-button" class="primary" type="button">
@@ -81,9 +58,28 @@
 
       <section class="help">
         <p>安装或卸载完成后会重启 WPS；请先保存正在编辑的文档。</p>
-        <button id="copy-diagnostics" class="link-button" type="button">复制诊断信息</button>
+        <div class="meta-row">
+          <span id="app-version" class="app-version"></span>
+          <button id="check-update-link" class="link-button" type="button">检查更新</button>
+          <span class="meta-sep" aria-hidden="true">·</span>
+          <button id="copy-diagnostics" class="link-button" type="button">复制诊断信息</button>
+        </div>
       </section>
     </main>
+
+    <div id="update-toast" class="update-toast" role="alert" hidden>
+      <div class="toast-body">
+        <p id="toast-title" class="toast-title"></p>
+        <p id="toast-notes" class="toast-notes" hidden></p>
+        <div id="toast-progress" class="toast-progress" role="progressbar" aria-label="更新下载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+          <div id="toast-progress-bar"></div>
+        </div>
+      </div>
+      <div class="toast-actions">
+        <button id="toast-action" class="toast-action" type="button">立即更新</button>
+        <button id="toast-dismiss" class="toast-dismiss" type="button" aria-label="关闭">&times;</button>
+      </div>
+    </div>
 
     <div id="confirmation-dialog" class="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" hidden>
       <section class="confirmation-dialog">

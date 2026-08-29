@@ -13,6 +13,7 @@ import {
   listenToOperationProgress,
   uninstallAddon
 } from "./api";
+import { getVersion } from "@tauri-apps/api/app";
 
 const installButton = document.querySelector<HTMLButtonElement>("#install-button")!;
 const uninstallButton = document.querySelector<HTMLButtonElement>("#uninstall-button")!;
@@ -31,11 +32,15 @@ const confirmationTitle = document.querySelector<HTMLElement>("#confirmation-tit
 const confirmationMessage = document.querySelector<HTMLElement>("#confirmation-message")!;
 const confirmationCancel = document.querySelector<HTMLButtonElement>("#confirmation-cancel")!;
 const confirmationConfirm = document.querySelector<HTMLButtonElement>("#confirmation-confirm")!;
-const updateButton = document.querySelector<HTMLButtonElement>("#update-button")!;
-const updateStatus = document.querySelector<HTMLElement>("#update-status")!;
-const updateNotes = document.querySelector<HTMLElement>("#update-notes")!;
-const updateProgressContainer = document.querySelector<HTMLElement>("#update-progress")!;
-const updateProgressBar = document.querySelector<HTMLElement>("#update-progress-bar")!;
+const appVersion = document.querySelector<HTMLElement>("#app-version")!;
+const checkUpdateLink = document.querySelector<HTMLButtonElement>("#check-update-link")!;
+const updateToast = document.querySelector<HTMLElement>("#update-toast")!;
+const toastTitle = document.querySelector<HTMLElement>("#toast-title")!;
+const toastNotes = document.querySelector<HTMLElement>("#toast-notes")!;
+const toastProgress = document.querySelector<HTMLElement>("#toast-progress")!;
+const toastProgressBar = document.querySelector<HTMLElement>("#toast-progress-bar")!;
+const toastAction = document.querySelector<HTMLButtonElement>("#toast-action")!;
+const toastDismiss = document.querySelector<HTMLButtonElement>("#toast-dismiss")!;
 
 let latestReport: EnvironmentReport | undefined;
 let confirmationResolver: ((confirmed: boolean) => void) | undefined;
@@ -65,7 +70,7 @@ function setBusy(busy: boolean, action?: OperationAction) {
   installButton.disabled = busy || !latestReport?.wpsVersionSupported;
   uninstallButton.disabled = busy;
   copyButton.disabled = busy;
-  updateButton.disabled = busy || updateBusy;
+  checkUpdateLink.disabled = busy || updateBusy;
   installButton.setAttribute("aria-busy", String(busy && action === "install"));
   uninstallButton.setAttribute("aria-busy", String(busy && action === "uninstall"));
   installButton.classList.toggle("is-loading", busy && action === "install");
@@ -78,14 +83,8 @@ function setBusy(busy: boolean, action?: OperationAction) {
 
 function setUpdateBusy(busy: boolean) {
   updateBusy = busy;
-  updateButton.disabled = busy || installButton.disabled;
-  updateButton.setAttribute("aria-busy", String(busy));
-  updateButton.classList.toggle("is-loading", busy);
-  updateButton.querySelector<HTMLElement>(".button-label")!.textContent = busy
-    ? "正在更新"
-    : latestUpdate?.update
-      ? `更新到 v${latestUpdate.update.version}`
-      : "检查更新";
+  checkUpdateLink.disabled = busy || installButton.disabled;
+  toastAction.disabled = busy;
 }
 
 function updateProgress(update: OperationProgress) {
@@ -120,12 +119,30 @@ function formatBytes(bytes: number): string {
 
 function updateAppProgress(progress: AppUpdateProgress) {
   const percent = progress.percent ?? Math.max(0, Math.min(100, progress.downloaded));
-  updateProgressContainer.hidden = false;
-  updateProgressContainer.setAttribute("aria-valuenow", String(percent));
-  updateProgressBar.style.width = `${percent}%`;
-  updateStatus.textContent = progress.total
+  toastProgress.hidden = false;
+  toastProgress.setAttribute("aria-valuenow", String(percent));
+  toastProgressBar.style.width = `${percent}%`;
+  toastTitle.textContent = progress.total
     ? `${progress.message} ${percent}%（${formatBytes(progress.downloaded)} / ${formatBytes(progress.total)}）`
     : `${progress.message} ${formatBytes(progress.downloaded)}`;
+}
+
+function showUpdateToast() {
+  if (!latestUpdate?.update) return;
+  toastTitle.textContent = `发现新版本 v${latestUpdate.update.version}`;
+  toastNotes.textContent = latestUpdate.update.notes ?? "";
+  toastNotes.hidden = !latestUpdate.update.notes;
+  toastProgress.hidden = true;
+  toastAction.hidden = false;
+  toastAction.disabled = false;
+  toastAction.textContent = "立即更新";
+  toastDismiss.hidden = false;
+  updateToast.hidden = false;
+}
+
+function hideUpdateToast() {
+  updateToast.hidden = true;
+  toastProgress.hidden = true;
 }
 
 function closeConfirmation(confirmed: boolean) {
@@ -154,24 +171,24 @@ function confirmOperation(action: OperationAction | "app-update") {
 
 async function checkUpdates(silent: boolean): Promise<boolean> {
   if (updateBusy) return Boolean(latestUpdate?.update);
+  if (!silent) {
+    checkUpdateLink.textContent = "检查中…";
+  }
   setUpdateBusy(true);
-  updateStatus.textContent = "正在检查应用更新…";
-  updateNotes.hidden = true;
   try {
     latestUpdate = await checkAppUpdate();
+    appVersion.textContent = `v${latestUpdate.currentVersion}`;
+    setUpdateBusy(false);
     if (latestUpdate.update) {
-      updateStatus.textContent = `当前 v${latestUpdate.currentVersion}，可更新到 v${latestUpdate.update.version}。`;
-      updateNotes.textContent = latestUpdate.update.notes ?? "";
-      updateNotes.hidden = !latestUpdate.update.notes;
+      checkUpdateLink.textContent = "新版本可用";
+      showUpdateToast();
     } else {
-      updateStatus.textContent = `当前 v${latestUpdate.currentVersion}，已是最新版本。`;
-      updateNotes.hidden = true;
+      checkUpdateLink.textContent = silent ? "检查更新" : "已是最新";
     }
-    setUpdateBusy(false);
     return Boolean(latestUpdate.update);
-  } catch (error) {
-    updateStatus.textContent = silent ? "自动检查更新未完成，可稍后手动重试。" : readableError(error);
+  } catch {
     setUpdateBusy(false);
+    checkUpdateLink.textContent = silent ? "检查更新" : "检查失败，点击重试";
     return false;
   }
 }
@@ -269,22 +286,27 @@ async function runAppUpdate() {
   if (!await confirmOperation("app-update")) return;
 
   setUpdateBusy(true);
-  updateStatus.textContent = "正在准备应用更新…";
-  updateNotes.hidden = true;
+  toastAction.textContent = "正在更新…";
+  toastDismiss.hidden = true;
+  toastProgress.hidden = false;
+  toastProgressBar.style.width = "0%";
   let unlisten: (() => void) | undefined;
   try {
     unlisten = await listenToAppUpdateProgress(updateAppProgress);
     const installed = await installAppUpdateAndRestart();
     if (!installed) {
-      updateStatus.textContent = "已是最新版本。";
-  updateProgressContainer.hidden = true;
+      toastTitle.textContent = "已是最新版本。";
+      toastProgress.hidden = true;
     }
   } catch (error) {
-    updateStatus.textContent = readableError(error);
-  updateProgressContainer.hidden = true;
+    toastTitle.textContent = readableError(error);
+    toastProgress.hidden = true;
   } finally {
     unlisten?.();
     setUpdateBusy(false);
+    toastAction.textContent = "立即更新";
+    toastAction.hidden = false;
+    toastDismiss.hidden = false;
   }
 }
 
@@ -298,7 +320,15 @@ document.addEventListener("keydown", (event) => {
 });
 installButton.addEventListener("click", () => void run("install"));
 uninstallButton.addEventListener("click", () => void run("uninstall"));
-updateButton.addEventListener("click", () => void runAppUpdate());
+checkUpdateLink.addEventListener("click", () => {
+  if (latestUpdate?.update) {
+    showUpdateToast();
+  } else {
+    void checkUpdates(false);
+  }
+});
+toastAction.addEventListener("click", () => void runAppUpdate());
+toastDismiss.addEventListener("click", hideUpdateToast);
 copyButton.addEventListener("click", async () => {
   const text = JSON.stringify(latestReport ?? { error: "尚未获取诊断信息" }, null, 2);
   try {
@@ -310,4 +340,7 @@ copyButton.addEventListener("click", async () => {
 });
 
 void refresh();
+void getVersion().then((version) => {
+  appVersion.textContent = `v${version}`;
+}).catch(() => {});
 window.setTimeout(() => void checkUpdates(true), 1500);
