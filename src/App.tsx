@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeftIcon,
   ArrowClockwiseIcon,
   CalendarDotsIcon,
   CheckCircleIcon,
@@ -40,8 +41,9 @@ import {
   type EnvironmentReport,
   type PermissionReport
 } from "./api";
+import { helpGuides, MarkdownDocument } from "./help-guides";
 
-type Page = "addons" | "sources" | "permissions" | "help";
+type Page = "addons" | "sources" | "permissions" | "help" | "help-document";
 type Notice = { tone: "success" | "warning" | "error"; text: string } | null;
 
 type Addon = {
@@ -103,11 +105,13 @@ export function App() {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [permissionReport, setPermissionReport] = useState<PermissionReport | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [environmentError, setEnvironmentError] = useState<string | null>(null);
   const [update, setUpdate] = useState<AppUpdateInfo | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [isUninstalling, setIsUninstalling] = useState(false);
   const [installingAddonId, setInstallingAddonId] = useState<string | null>(null);
+  const [helpGuideId, setHelpGuideId] = useState(helpGuides[0].id);
 
   const installed = addons.filter((addon) => addon.installed);
   const available = useMemo(() => addons.filter((addon) => !addon.installed && addon.name.includes(query.trim())), [addons, query]);
@@ -148,7 +152,15 @@ export function App() {
       setPermissionReport(report);
       setPermissionGranted(report.jsaddonsWritable);
     }).catch(() => undefined);
-    void inspectEnvironment().then(setEnvironment).catch(() => undefined);
+    void inspectEnvironment()
+      .then((report) => {
+        setEnvironment(report);
+        setEnvironmentError(null);
+      })
+      .catch((error: unknown) => {
+        setEnvironment(null);
+        setEnvironmentError(error instanceof Error ? error.message : "环境检查被拒绝或无法访问 WPS 环境。");
+      });
     void checkAppUpdate().then((report) => {
       if (report.update) {
         setUpdate(report.update);
@@ -242,17 +254,18 @@ export function App() {
   return <main className="grid h-full grid-cols-[216px_minmax(0,1fr)] bg-[#f5f6fa] text-slate-900 dark:bg-[#11151e] dark:text-slate-100">
     <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-[#151b26]">
       <div className="mb-10 flex items-center gap-3 px-2"><div className="grid size-11 place-items-center rounded-xl bg-brand-600 text-xl font-black text-white shadow-lg shadow-brand-600/25">日</div><div><p className="text-[11px] font-bold tracking-[0.12em] text-brand-600">WPS 表格加载项</p><h1 className="text-base font-bold">插件管理器</h1></div></div>
-      <nav aria-label="主导航" className="grid gap-1">{navItems.map(({ id, label, icon: Icon }) => <button key={id} type="button" onClick={() => setPage(id)} className={`relative flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${page === id ? "bg-brand-100 text-brand-700 dark:bg-brand-600/25 dark:text-brand-100" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}><Icon size={21} weight={page === id ? "fill" : "regular"} />{label}{id === "permissions" && permissionNeedsAttention && <span aria-label="权限需要处理" className="absolute right-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#151b26]" />}</button>)}</nav>
+      <nav aria-label="主导航" className="grid gap-1">{navItems.map(({ id, label, icon: Icon }) => { const active = page === id || (id === "help" && page === "help-document"); return <button key={id} type="button" onClick={() => setPage(id)} className={`relative flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition ${active ? "bg-brand-100 text-brand-700 dark:bg-brand-600/25 dark:text-brand-100" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"}`}><Icon size={21} weight={active ? "fill" : "regular"} />{label}{id === "permissions" && permissionNeedsAttention && <span aria-label="权限需要处理" className="absolute right-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#151b26]" />}</button>; })}</nav>
       <div className="mt-auto border-t border-slate-200 px-2 pt-5 dark:border-slate-800"><p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400"><span className="size-2 rounded-full bg-emerald-500" />WPS 已连接</p><p className="mt-2 text-xs text-slate-400">安装器 v0.1.0</p><button type="button" onClick={checkForUpdate} disabled={isCheckingUpdate} className="mt-4 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-brand-700 disabled:cursor-wait disabled:opacity-70 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-brand-200"><ArrowClockwiseIcon size={16} className={isCheckingUpdate ? "animate-spin" : ""} />{isCheckingUpdate ? "正在检查更新…" : "检查应用更新"}</button></div>
     </aside>
 
     <section className="min-w-0 overflow-auto p-8">
       {installingAddon && <div role="status" className="mb-6 flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100"><ArrowClockwiseIcon size={19} className="animate-spin" />正在安装“{installingAddon.name}”，正在下载、校验并部署插件，请稍候…</div>}
       {notice && <div role="status" className={`mb-6 flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm ${notice.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200" : notice.tone === "error" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"}`}><span className="flex gap-2">{notice.tone === "success" ? <CheckCircleIcon size={19} weight="fill" /> : <WarningCircleIcon size={19} weight="fill" />}{notice.text}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭提示"><XIcon size={17} /></button></div>}
-      {page === "addons" && <AddonsPage addons={addons} installed={installed} available={available} query={query} selected={selected} environment={environment} isUninstalling={isUninstalling} installingAddonId={installingAddonId} setQuery={setQuery} setSelected={setSelected} install={install} onUninstall={() => setModal("uninstall")} />}
+      {page === "addons" && <AddonsPage addons={addons} installed={installed} available={available} query={query} selected={selected} environment={environment} environmentError={environmentError} isUninstalling={isUninstalling} installingAddonId={installingAddonId} setQuery={setQuery} setSelected={setSelected} install={install} onUninstall={() => setModal("uninstall")} />}
       {page === "sources" && <SourcesPage sources={sources} setSources={setSources} add={() => setModal("source")} notify={notify} />}
       {page === "permissions" && <PermissionsPage report={permissionReport} granted={permissionGranted} onApply={() => { void inspectPermissions().then((report) => { setPermissionReport(report); setPermissionGranted(report.jsaddonsWritable); notify(report.jsaddonsWritable ? "success" : "warning", report.guidance); }).catch(() => notify("warning", "当前系统未返回权限状态，请按下方步骤在系统设置中完成授权。")); }} onOpenSettings={() => { void openPermissionSettings().then(() => notify("success", "系统权限设置已打开。完成授权后请返回此页重新检测。")).catch(() => notify("warning", "无法自动打开系统设置，请按下方步骤手动开启权限。")); }} />}
-      {page === "help" && <HelpPage />}
+      {page === "help" && <HelpPage onOpen={(guideId) => { setHelpGuideId(guideId); setPage("help-document"); }} />}
+      {page === "help-document" && <HelpDocumentPage guideId={helpGuideId} onBack={() => setPage("help")} onNavigate={setHelpGuideId} />}
     </section>
 
     {modal === "source" && <Modal title="添加控件源" onClose={() => setModal(null)}><p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">只添加你信任的 HTTPS 索引地址。保存后默认停用，需要测试连接后再启用。</p><label className="mt-5 block text-sm font-semibold">名称<input value={sourceDraft.name} onChange={(event) => setSourceDraft({ ...sourceDraft, name: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none dark:border-slate-700 dark:bg-slate-950" placeholder="例如：团队内部控件源" /></label><label className="mt-4 block text-sm font-semibold">索引 URL<input value={sourceDraft.url} onChange={(event) => setSourceDraft({ ...sourceDraft, url: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none dark:border-slate-700 dark:bg-slate-950" placeholder="https://example.com/v1/index.json" /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setModal(null)} className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">取消</button><button type="button" onClick={addSource} className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/20 hover:bg-brand-700">保存为停用</button></div></Modal>}
@@ -261,18 +274,25 @@ export function App() {
   </main>;
 }
 
-function AddonsPage({ addons, installed, available, query, selected, environment, isUninstalling, installingAddonId, setQuery, setSelected, install, onUninstall }: { addons: Addon[]; installed: Addon[]; available: Addon[]; query: string; selected: string[]; environment: EnvironmentReport | null; isUninstalling: boolean; installingAddonId: string | null; setQuery: (value: string) => void; setSelected: (value: string[]) => void; install: (id: string) => void; onUninstall: () => void }) {
+function AddonsPage({ addons, installed, available, query, selected, environment, environmentError, isUninstalling, installingAddonId, setQuery, setSelected, install, onUninstall }: { addons: Addon[]; installed: Addon[]; available: Addon[]; query: string; selected: string[]; environment: EnvironmentReport | null; environmentError: string | null; isUninstalling: boolean; installingAddonId: string | null; setQuery: (value: string) => void; setSelected: (value: string[]) => void; install: (id: string) => void; onUninstall: () => void }) {
   const toggle = (id: string) => setSelected(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
   const environmentPassed = Boolean(environment?.wpsInstalled && environment.wpsVersionSupported);
-  const environmentMessage = environment
+  const environmentMessage = environmentError
+    ? `环境检查失败：${environmentError}`
+    : environment
     ? environmentPassed
       ? `环境检查通过 · WPS ${environment.wpsVersion}`
       : environment.wpsInstalled
         ? `WPS ${environment.wpsVersion ?? "版本读取失败"} 不满足最低要求 ${environment.wpsMinimumVersion}`
         : "未检测到 WPS Office"
-    : "正在检查 WPS 环境…";
+      : "正在检查 WPS 环境…";
+  const environmentStyle = environmentError
+    ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+    : environmentPassed
+      ? "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100"
+      : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200";
   return <><header className="flex items-start justify-between gap-6"><div><p className="text-xs font-bold tracking-[0.12em] text-brand-600">WPS 插件</p><h2 className="mt-1 text-3xl font-bold tracking-tight">插件</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">管理 WPS 中的加载项</p></div><button type="button" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 transition hover:border-brand-200 hover:text-brand-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><ArrowClockwiseIcon size={18} />刷新</button></header>
-    <div className={`mt-7 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${environmentPassed ? "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"}`}><CheckCircleIcon size={19} weight="fill" />{environmentMessage}</div>
+    <div className={`mt-7 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${environmentStyle}`}>{environmentPassed ? <CheckCircleIcon size={19} weight="fill" /> : <WarningCircleIcon size={19} weight="fill" />}{environmentMessage}</div>
     <div className="mt-7 flex items-center justify-between gap-4"><label className="relative block w-full max-w-sm"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索插件" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm outline-none placeholder:text-slate-400 focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><p className="shrink-0 text-xs text-slate-400">来源更新后自动显示新版本</p></div>
     <section className="mt-8"><div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-bold">已安装</h3><span className="text-sm text-slate-500">{installed.length} 个插件</span></div><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"><div className="grid grid-cols-[36px_minmax(210px,1.8fr)_100px_140px_110px_40px] items-center border-b border-slate-100 px-4 py-3 text-xs font-bold text-slate-400 dark:border-slate-800"><span><input aria-label="选择全部已安装插件" disabled={isUninstalling} type="checkbox" checked={installed.length > 0 && selected.length === installed.length} onChange={() => setSelected(selected.length === installed.length ? [] : installed.map((item) => item.id))} /></span><span>名称</span><span>版本</span><span>来源</span><span>状态</span><span /></div>{installed.map((addon) => <div key={addon.id} className="grid grid-cols-[36px_minmax(210px,1.8fr)_100px_140px_110px_40px] items-center px-4 py-4 text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800/50"><span><input aria-label={`选择${addon.name}`} disabled={isUninstalling} type="checkbox" checked={selected.includes(addon.id)} onChange={() => toggle(addon.id)} /></span><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15"><FileTextIcon size={21} /></span><span><strong className="block">{addon.name}</strong><small className="mt-0.5 block text-slate-500">{addon.description}</small></span></span><span>{addon.version}</span><span className="text-slate-500 dark:text-slate-400">{addon.source}</span><span><StatusPill tone="success"><span className="size-1.5 rounded-full bg-emerald-500" />{addon.health}</StatusPill></span><IconButton label={`${addon.name}更多操作`}><DotsThreeVerticalIcon size={18} /></IconButton></div>)}</div>{selected.length > 0 && <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900"><span className="text-sm font-semibold">{isUninstalling ? "正在卸载所选插件…" : `已选择 ${selected.length} 项`}</span><button type="button" disabled={isUninstalling} onClick={onUninstall} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-rose-950/30"><TrashIcon size={18} />卸载</button></div>}</section>
     <section className="mt-9"><h3 className="mb-3 text-lg font-bold">可安装</h3><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{available.length ? available.map((addon) => { const isInstalling = installingAddonId === addon.id; return <div key={addon.id} className="flex items-center gap-4 px-5 py-5"><span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15"><CalendarDotsIcon size={24} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h4 className="font-bold">{addon.name}</h4><span className="text-xs text-slate-400">v{addon.version}</span></div><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{addon.description}</p><p className="mt-2 text-xs font-medium text-brand-600 dark:text-brand-300">{addon.source}</p></div><button type="button" disabled={Boolean(installingAddonId)} onClick={() => install(addon.id)} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70">{isInstalling ? <ArrowClockwiseIcon size={18} className="animate-spin" /> : <DownloadSimpleIcon size={18} />}{isInstalling ? "正在安装…" : "安装"}</button></div>; }) : <p className="p-8 text-center text-sm text-slate-500">未找到匹配的插件。</p>}</div></section></>;
@@ -293,19 +313,13 @@ function PermissionsPage({ report, granted, onApply, onOpenSettings }: { report:
   return <><header><p className="text-xs font-bold tracking-[0.12em] text-brand-600">系统访问</p><h2 className="mt-1 text-3xl font-bold tracking-tight">权限</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">安装器只在需要安装、修复或卸载插件时访问 WPS 加载项目录。拒绝后可以在这里重新申请，不会自动修改系统设置。</p></header><div className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{rows.map(([label, state, okay]) => <div key={label} className="flex items-center gap-4 border-b border-slate-100 px-5 py-5 last:border-0 dark:border-slate-800"><span className={`grid size-10 place-items-center rounded-full ${okay ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40" : "bg-amber-50 text-amber-600 dark:bg-amber-950/40"}`}>{okay ? <CheckCircleIcon size={22} weight="fill" /> : <LockKeyIcon size={21} />}</span><div className="flex-1"><h3 className="font-bold">{label}</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{okay ? "安装器可继续执行对应操作。" : "请在继续前完成授权。"}</p></div><StatusPill tone={okay ? "success" : "warning"}>{state}</StatusPill></div>)}</div>{!granted && <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/60 dark:bg-amber-950/25"><div className="flex gap-3"><WarningCircleIcon className="mt-0.5 shrink-0 text-amber-600" size={22} weight="fill" /><div><h3 className="font-bold text-amber-900 dark:text-amber-200">权限尚未开启</h3><p className="mt-1 text-sm leading-6 text-amber-800 dark:text-amber-300">{report?.guidance ?? "请按系统设置步骤完成授权，然后重新检测。"}</p><div className="mt-4 flex gap-3"><button type="button" onClick={onOpenSettings} className="rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-700">打开系统设置</button><button type="button" onClick={onApply} className="rounded-xl px-3 py-2.5 text-sm font-bold text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/30">重新检测</button></div></div></div></section>}</>;
 }
 
-function HelpPage() {
-  const guides = [
-    { title: "快速开始", body: "在“插件”页确认已检测到 WPS，然后从“可安装”中选择插件。安装器会下载、校验并部署插件，完成后请重启 WPS。" },
-    { title: "安装、更新与修复插件", body: "安装仅接受已启用控件源提供的 HTTPS 插件包，并会核对文件大小和 SHA-256。出现“需要修复”时，请重新安装对应版本。" },
-    { title: "查看和卸载插件", body: "“已安装”列表显示名称、版本、来源和健康状态。勾选一个或多个插件后选择“卸载”，只会删除所选插件和对应的 WPS 配置。" },
-    { title: "添加自定义控件源", body: "在“控件源”页添加发布者提供的 HTTPS 索引地址。先测试连接，确认索引有效后再启用；同名插件按控件源优先级处理。" },
-    { title: "macOS 权限恢复", body: "在权限页点击“重新检测”。若仍无法写入，请在“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中允许 WPS 插件管理器，然后重新打开应用。" },
-    { title: "Windows 权限恢复", body: "在权限页重新检测，并确认系统“文件系统”访问未限制本应用。若开启了“受控文件夹访问”，请把 WPS 插件管理器加入允许列表。" },
-    { title: "常见错误与诊断", body: "控件源无法连接时，请确认 URL 为 HTTPS 且网络可访问。下载或校验失败时，请联系发布者核对版本、文件大小和 SHA-256。" },
-    { title: "发布控件包（维护者）", body: "索引应使用 schemaVersion: 1，且每个插件必须提供安全的 ID、版本、HTTPS 下载地址、文件大小和 64 位 SHA-256。不要使用会变动的 latest 下载地址。" }
-  ];
+function HelpPage({ onOpen }: { onOpen: (guideId: string) => void }) {
   const [query, setQuery] = useState("");
-  const [selectedGuide, setSelectedGuide] = useState<(typeof guides)[number] | null>(null);
-  const visibleGuides = guides.filter((guide) => guide.title.includes(query.trim()));
-  return <><header><p className="text-xs font-bold tracking-[0.12em] text-brand-600">离线帮助</p><h2 className="mt-1 text-3xl font-bold tracking-tight">帮助</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">按任务查找操作说明和故障恢复方法。</p></header><label className="relative mt-7 block max-w-xl"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索用户手册" className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-3 pl-10 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{visibleGuides.length ? visibleGuides.map((guide) => <button type="button" key={guide.title} onClick={() => setSelectedGuide(guide)} className="flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left text-sm font-semibold transition last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"><ClipboardTextIcon className="text-brand-600" size={20} />{guide.title}</button>) : <p className="px-5 py-4 text-sm text-slate-500">未找到匹配的帮助条目。</p>}</div>{selectedGuide && <article className="mt-6 rounded-2xl border border-brand-200 bg-brand-50 p-5 dark:border-brand-600/30 dark:bg-brand-600/10"><div className="flex items-start justify-between gap-4"><div><h3 className="font-bold text-brand-900 dark:text-brand-100">{selectedGuide.title}</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700 dark:text-brand-100">{selectedGuide.body}</p></div><button type="button" onClick={() => setSelectedGuide(null)} className="shrink-0 rounded-lg px-3 py-2 text-sm font-bold text-brand-700 hover:bg-brand-100 dark:text-brand-200 dark:hover:bg-brand-600/20">关闭</button></div></article>}</>;
+  const visibleGuides = helpGuides.filter((guide) => `${guide.title}\n${guide.content}`.includes(query.trim()));
+  return <><header><p className="text-xs font-bold tracking-[0.12em] text-brand-600">离线帮助</p><h2 className="mt-1 text-3xl font-bold tracking-tight">帮助</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">内容直接来自项目的用户手册。</p></header><label className="relative mt-7 block max-w-xl"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索用户手册" className="w-full rounded-xl border border-slate-200 bg-white py-3 pr-3 pl-10 text-sm outline-none focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><div className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{visibleGuides.length ? visibleGuides.map((guide) => <button type="button" key={guide.id} onClick={() => onOpen(guide.id)} className="flex w-full items-center gap-3 border-b border-slate-100 px-5 py-4 text-left text-sm font-semibold transition last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"><ClipboardTextIcon className="text-brand-600" size={20} />{guide.title}</button>) : <p className="px-5 py-4 text-sm text-slate-500">未找到匹配的帮助条目。</p>}</div></>;
+}
+
+function HelpDocumentPage({ guideId, onBack, onNavigate }: { guideId: string; onBack: () => void; onNavigate: (guideId: string) => void }) {
+  const guide = helpGuides.find((item) => item.id === guideId) ?? helpGuides[0];
+  return <><header><button type="button" onClick={onBack} className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-600/10"><ArrowLeftIcon size={18} />返回帮助目录</button><p className="mt-5 text-xs font-bold tracking-[0.12em] text-brand-600">离线帮助</p><h2 className="mt-1 text-3xl font-bold tracking-tight">{guide.title}</h2></header><article className="mt-7 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900"><MarkdownDocument content={guide.content} onNavigate={onNavigate} /></article></>;
 }
