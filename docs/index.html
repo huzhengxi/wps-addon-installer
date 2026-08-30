@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="WPS 插件管理器是一款面向 WPS Office 表格加载项的跨平台桌面管理工具。"
+    />
+    <meta name="theme-color" content="#6954db" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="WPS 插件管理器" />
+    <meta
+      property="og:description"
+      content="安全发现、校验、安装与管理 WPS Office 表格加载项。"
+    />
+    <title>WPS 插件管理器</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        --background: #f7f7fc;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-solid: #ffffff;
+        --text: #182033;
+        --muted: #60697e;
+        --border: rgba(105, 84, 219, 0.15);
+        --brand: #6954db;
+        --brand-strong: #5740c9;
+        --brand-soft: #eeeafd;
+        --success: #167c5a;
+        --shadow: 0 24px 60px rgba(60, 48, 128, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+        background:
+          radial-gradient(circle at 10% 5%, rgba(121, 101, 231, 0.16), transparent 32rem),
+          radial-gradient(circle at 90% 30%, rgba(91, 201, 160, 0.12), transparent 26rem),
+          var(--background);
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      a:focus-visible {
+        outline: 3px solid rgba(121, 101, 231, 0.4);
+        outline-offset: 3px;
+      }
+
+      .page {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 28px 0;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text);
+        font-weight: 750;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border-radius: 12px;
+        background: linear-gradient(145deg, #806fec, var(--brand-strong));
+        box-shadow: 0 10px 24px rgba(105, 84, 219, 0.25);
+        color: #ffffff;
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        font-size: 14px;
+        font-weight: 650;
+      }
+
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      nav a:hover {
+        color: var(--brand);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+        align-items: center;
+        gap: 72px;
+        min-height: 610px;
+        padding: 72px 0 96px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 20px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        padding: 7px 12px;
+        color: var(--brand-strong);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .eyebrow::before {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #43b98f;
+        box-shadow: 0 0 0 4px rgba(67, 185, 143, 0.14);
+        content: "";
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 0;
+        font-size: clamp(44px, 6vw, 72px);
+        line-height: 1.08;
+        letter-spacing: -0.045em;
+      }
+
+      .hero-copy {
+        max-width: 650px;
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-size: clamp(17px, 2vw, 20px);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 36px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--border);
+        border-radius: 13px;
+        padding: 11px 20px;
+        background: var(--surface-solid);
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 720;
+        text-decoration: none;
+        transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(60, 48, 128, 0.12);
+      }
+
+      .button-primary {
+        border-color: transparent;
+        background: var(--brand);
+        box-shadow: 0 12px 28px rgba(105, 84, 219, 0.28);
+        color: #ffffff;
+      }
+
+      .button-primary:hover {
+        background: var(--brand-strong);
+      }
+
+      .compatibility {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .product-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.72);
+        border-radius: 28px;
+        background: var(--surface);
+        padding: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .product-card::before {
+        position: absolute;
+        inset: 0 0 auto;
+        height: 4px;
+        background: linear-gradient(90deg, var(--brand), #8c7cf1, #43b98f);
+        content: "";
+      }
+
+      .window-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 20px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .window-dots {
+        display: flex;
+        gap: 6px;
+      }
+
+      .window-dots span {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #d7d8e1;
+      }
+
+      .source-panel {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--surface-solid);
+        padding: 18px;
+      }
+
+      .source-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .source-title strong {
+        font-size: 15px;
+      }
+
+      .status {
+        border-radius: 999px;
+        background: rgba(67, 185, 143, 0.12);
+        padding: 4px 9px;
+        color: var(--success);
+        font-size: 11px;
+        font-weight: 750;
+      }
+
+      .source-url {
+        overflow: hidden;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .plugin-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .plugin {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface-solid);
+        padding: 14px;
+      }
+
+      .plugin-icon {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        place-items: center;
+        border-radius: 12px;
+        background: var(--brand-soft);
+        color: var(--brand);
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .plugin strong,
+      .plugin small {
+        display: block;
+      }
+
+      .plugin strong {
+        font-size: 14px;
+      }
+
+      .plugin small {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .install {
+        border-radius: 9px;
+        background: var(--brand-soft);
+        padding: 6px 10px;
+        color: var(--brand-strong);
+        font-size: 11px;
+        font-weight: 750;
+      }
+
+      .features {
+        padding: 12px 0 104px;
+      }
+
+      .section-heading {
+        max-width: 680px;
+        margin-bottom: 36px;
+      }
+
+      .section-heading h2 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 44px);
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+      }
+
+      .section-heading p {
+        margin: 14px 0 0;
+        color: var(--muted);
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .feature {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--surface);
+        padding: 24px;
+      }
+
+      .feature-number {
+        color: var(--brand);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .feature h3 {
+        margin: 18px 0 8px;
+        font-size: 18px;
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        border-top: 1px solid var(--border);
+        padding: 28px 0 42px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      footer a {
+        color: var(--brand-strong);
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      @media (max-width: 840px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 52px;
+          min-height: auto;
+          padding: 64px 0 88px;
+        }
+
+        .product-card {
+          width: min(100%, 560px);
+        }
+
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 580px) {
+        .page {
+          width: min(100% - 28px, 1120px);
+        }
+
+        header {
+          padding: 20px 0;
+        }
+
+        nav a:first-child {
+          display: none;
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+
+        .hero {
+          padding-top: 44px;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .product-card {
+          border-radius: 22px;
+          padding: 18px;
+        }
+
+        .plugin {
+          grid-template-columns: 38px minmax(0, 1fr);
+        }
+
+        .install {
+          display: none;
+        }
+
+        footer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: #10131c;
+          --surface: rgba(26, 30, 43, 0.82);
+          --surface-solid: #1a1e2b;
+          --text: #f1f3fa;
+          --muted: #aeb5c8;
+          --border: rgba(147, 130, 237, 0.2);
+          --brand: #8d7cf0;
+          --brand-strong: #aa9cf6;
+          --brand-soft: rgba(121, 101, 231, 0.18);
+          --success: #6bd3ad;
+          --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+        }
+
+        .product-card {
+          border-color: rgba(147, 130, 237, 0.18);
+        }
+
+        .window-dots span {
+          background: #474d60;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        .button {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <a class="brand" href="./" aria-label="WPS 插件管理器首页">
+          <span class="brand-mark" aria-hidden="true">W</span>
+          <span>WPS 插件管理器</span>
+        </a>
+        <nav aria-label="主要导航">
+          <a href="#features">功能</a>
+          <a href="https://github.com/huzhengxi/wps-addon-manager/blob/main/docs/user-guide/index.md">用户手册</a>
+          <a href="https://github.com/huzhengxi/wps-addon-manager">GitHub</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div>
+            <p class="eyebrow">适用于 macOS 与 Windows</p>
+            <h1>让 WPS 加载项安装更简单、更安心。</h1>
+            <p class="hero-copy">
+              从可信控件源发现插件，下载后自动校验大小与 SHA-256，集中完成安装、卸载、权限恢复和应用更新。
+            </p>
+            <div class="actions">
+              <a
+                class="button button-primary"
+                href="https://github.com/huzhengxi/wps-addon-manager/releases/latest"
+              >
+                下载最新版本
+              </a>
+              <a
+                class="button"
+                href="https://github.com/huzhengxi/wps-addon-manager/blob/main/docs/user-guide/quick-start.md"
+              >查看快速开始</a>
+            </div>
+            <p class="compatibility">首版支持 WPS Office 表格（ET）加载项。</p>
+          </div>
+
+          <div class="product-card" aria-label="WPS 插件管理器界面示意">
+            <div class="window-bar">
+              <span>WPS 插件管理器</span>
+              <span class="window-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+            </div>
+            <div class="source-panel">
+              <div class="source-title">
+                <strong>官方控件源</strong>
+                <span class="status">已验证</span>
+              </div>
+              <p class="source-url">huzhengxi.github.io/wps-addon-catalog/v1/index.json</p>
+            </div>
+            <div class="plugin-list">
+              <div class="plugin">
+                <span class="plugin-icon" aria-hidden="true">日</span>
+                <span>
+                  <strong>日期选择器</strong>
+                  <small>WPS 表格加载项 · SHA-256 已校验</small>
+                </span>
+                <span class="install">安全安装</span>
+              </div>
+              <div class="plugin">
+                <span class="plugin-icon" aria-hidden="true">✓</span>
+                <span>
+                  <strong>安装环境</strong>
+                  <small>WPS 路径和目录权限正常</small>
+                </span>
+                <span class="status">可用</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="features" id="features">
+          <div class="section-heading">
+            <h2>把复杂的安装流程，收进一个清晰的桌面工具。</h2>
+            <p>减少手动解压、修改 publish.xml 和排查目录权限带来的不确定性。</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature">
+              <span class="feature-number">01</span>
+              <h3>可信来源</h3>
+              <p>仅接受 HTTPS 控件源，下载前重新读取索引，避免使用过期的插件信息。</p>
+            </article>
+            <article class="feature">
+              <span class="feature-number">02</span>
+              <h3>完整校验</h3>
+              <p>安装前核对文件大小与 SHA-256，并拒绝危险压缩结构和越界路径。</p>
+            </article>
+            <article class="feature">
+              <span class="feature-number">03</span>
+              <h3>可控管理</h3>
+              <p>扫描已安装插件，按选择执行卸载，并提供 WPS 目录权限恢复指引。</p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>WPS 插件管理器 · React + Tauri</span>
+        <span>
+          <a href="https://github.com/huzhengxi/wps-addon-manager/issues">反馈问题</a>
+          · 请勿在 Issue 中粘贴令牌或私有源地址
+        </span>
+      </footer>
+    </div>
+  </body>
+</html>
