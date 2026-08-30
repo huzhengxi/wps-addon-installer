@@ -107,9 +107,11 @@ export function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [isUninstalling, setIsUninstalling] = useState(false);
+  const [installingAddonId, setInstallingAddonId] = useState<string | null>(null);
 
   const installed = addons.filter((addon) => addon.installed);
   const available = useMemo(() => addons.filter((addon) => !addon.installed && addon.name.includes(query.trim())), [addons, query]);
+  const installingAddon = addons.find((addon) => addon.id === installingAddonId) ?? null;
   const permissionNeedsAttention = permissionReport !== null && (!permissionReport.wpsFound || !permissionReport.wpsPathReadable || !permissionReport.jsaddonsWritable);
   const notify = (tone: NonNullable<Notice>["tone"], text: string) => setNotice({ tone, text });
 
@@ -181,19 +183,21 @@ export function App() {
   };
 
   const install = (id: string) => {
+    if (installingAddonId) return;
     const addon = addons.find((item) => item.id === id);
     if (!addon) return;
     if (!addon.sourceId) {
       notify("warning", `“${addon.name}”不是来自可用控件源，无法在线安装。`);
       return;
     }
-    notify("warning", `正在安装“${addon.name}”：下载、SHA-256 校验和部署可能需要几分钟。`);
+    setInstallingAddonId(id);
     void installCatalogAddon(addon.sourceId, addon.id)
       .then((report) => {
         setAddons((items) => items.map((item) => item.id === id ? { ...item, installed: true } : item));
         notify("success", report.message);
       })
-      .catch((error: unknown) => notify("error", error instanceof Error ? error.message : "插件安装失败。"));
+      .catch((error: unknown) => notify("error", error instanceof Error ? error.message : "插件安装失败。"))
+      .finally(() => setInstallingAddonId(null));
   };
   const uninstallSelected = () => {
     if (isUninstalling) return;
@@ -243,8 +247,9 @@ export function App() {
     </aside>
 
     <section className="min-w-0 overflow-auto p-8">
+      {installingAddon && <div role="status" className="mb-6 flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100"><ArrowClockwiseIcon size={19} className="animate-spin" />正在安装“{installingAddon.name}”，正在下载、校验并部署插件，请稍候…</div>}
       {notice && <div role="status" className={`mb-6 flex items-start justify-between gap-4 rounded-xl border px-4 py-3 text-sm ${notice.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200" : notice.tone === "error" ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"}`}><span className="flex gap-2">{notice.tone === "success" ? <CheckCircleIcon size={19} weight="fill" /> : <WarningCircleIcon size={19} weight="fill" />}{notice.text}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭提示"><XIcon size={17} /></button></div>}
-      {page === "addons" && <AddonsPage addons={addons} installed={installed} available={available} query={query} selected={selected} environment={environment} isUninstalling={isUninstalling} setQuery={setQuery} setSelected={setSelected} install={install} onUninstall={() => setModal("uninstall")} />}
+      {page === "addons" && <AddonsPage addons={addons} installed={installed} available={available} query={query} selected={selected} environment={environment} isUninstalling={isUninstalling} installingAddonId={installingAddonId} setQuery={setQuery} setSelected={setSelected} install={install} onUninstall={() => setModal("uninstall")} />}
       {page === "sources" && <SourcesPage sources={sources} setSources={setSources} add={() => setModal("source")} notify={notify} />}
       {page === "permissions" && <PermissionsPage report={permissionReport} granted={permissionGranted} onApply={() => { void inspectPermissions().then((report) => { setPermissionReport(report); setPermissionGranted(report.jsaddonsWritable); notify(report.jsaddonsWritable ? "success" : "warning", report.guidance); }).catch(() => notify("warning", "当前系统未返回权限状态，请按下方步骤在系统设置中完成授权。")); }} onOpenSettings={() => { void openPermissionSettings().then(() => notify("success", "系统权限设置已打开。完成授权后请返回此页重新检测。")).catch(() => notify("warning", "无法自动打开系统设置，请按下方步骤手动开启权限。")); }} />}
       {page === "help" && <HelpPage />}
@@ -256,7 +261,7 @@ export function App() {
   </main>;
 }
 
-function AddonsPage({ addons, installed, available, query, selected, environment, isUninstalling, setQuery, setSelected, install, onUninstall }: { addons: Addon[]; installed: Addon[]; available: Addon[]; query: string; selected: string[]; environment: EnvironmentReport | null; isUninstalling: boolean; setQuery: (value: string) => void; setSelected: (value: string[]) => void; install: (id: string) => void; onUninstall: () => void }) {
+function AddonsPage({ addons, installed, available, query, selected, environment, isUninstalling, installingAddonId, setQuery, setSelected, install, onUninstall }: { addons: Addon[]; installed: Addon[]; available: Addon[]; query: string; selected: string[]; environment: EnvironmentReport | null; isUninstalling: boolean; installingAddonId: string | null; setQuery: (value: string) => void; setSelected: (value: string[]) => void; install: (id: string) => void; onUninstall: () => void }) {
   const toggle = (id: string) => setSelected(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id]);
   const environmentPassed = Boolean(environment?.wpsInstalled && environment.wpsVersionSupported);
   const environmentMessage = environment
@@ -270,7 +275,7 @@ function AddonsPage({ addons, installed, available, query, selected, environment
     <div className={`mt-7 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold ${environmentPassed ? "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-600/30 dark:bg-brand-600/10 dark:text-brand-100" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"}`}><CheckCircleIcon size={19} weight="fill" />{environmentMessage}</div>
     <div className="mt-7 flex items-center justify-between gap-4"><label className="relative block w-full max-w-sm"><MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索插件" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pr-3 pl-10 text-sm outline-none placeholder:text-slate-400 focus:border-brand-400 dark:border-slate-700 dark:bg-slate-900" /></label><p className="shrink-0 text-xs text-slate-400">来源更新后自动显示新版本</p></div>
     <section className="mt-8"><div className="mb-3 flex items-center justify-between"><h3 className="text-lg font-bold">已安装</h3><span className="text-sm text-slate-500">{installed.length} 个插件</span></div><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"><div className="grid grid-cols-[36px_minmax(210px,1.8fr)_100px_140px_110px_40px] items-center border-b border-slate-100 px-4 py-3 text-xs font-bold text-slate-400 dark:border-slate-800"><span><input aria-label="选择全部已安装插件" disabled={isUninstalling} type="checkbox" checked={installed.length > 0 && selected.length === installed.length} onChange={() => setSelected(selected.length === installed.length ? [] : installed.map((item) => item.id))} /></span><span>名称</span><span>版本</span><span>来源</span><span>状态</span><span /></div>{installed.map((addon) => <div key={addon.id} className="grid grid-cols-[36px_minmax(210px,1.8fr)_100px_140px_110px_40px] items-center px-4 py-4 text-sm transition hover:bg-slate-50 dark:hover:bg-slate-800/50"><span><input aria-label={`选择${addon.name}`} disabled={isUninstalling} type="checkbox" checked={selected.includes(addon.id)} onChange={() => toggle(addon.id)} /></span><span className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15"><FileTextIcon size={21} /></span><span><strong className="block">{addon.name}</strong><small className="mt-0.5 block text-slate-500">{addon.description}</small></span></span><span>{addon.version}</span><span className="text-slate-500 dark:text-slate-400">{addon.source}</span><span><StatusPill tone="success"><span className="size-1.5 rounded-full bg-emerald-500" />{addon.health}</StatusPill></span><IconButton label={`${addon.name}更多操作`}><DotsThreeVerticalIcon size={18} /></IconButton></div>)}</div>{selected.length > 0 && <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900"><span className="text-sm font-semibold">{isUninstalling ? "正在卸载所选插件…" : `已选择 ${selected.length} 项`}</span><button type="button" disabled={isUninstalling} onClick={onUninstall} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-rose-950/30"><TrashIcon size={18} />卸载</button></div>}</section>
-    <section className="mt-9"><h3 className="mb-3 text-lg font-bold">可安装</h3><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{available.length ? available.map((addon) => <div key={addon.id} className="flex items-center gap-4 px-5 py-5"><span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15"><CalendarDotsIcon size={24} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h4 className="font-bold">{addon.name}</h4><span className="text-xs text-slate-400">v{addon.version}</span></div><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{addon.description}</p><p className="mt-2 text-xs font-medium text-brand-600 dark:text-brand-300">{addon.source}</p></div><button type="button" onClick={() => install(addon.id)} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700"><DownloadSimpleIcon size={18} />安装</button></div>) : <p className="p-8 text-center text-sm text-slate-500">未找到匹配的插件。</p>}</div></section></>;
+    <section className="mt-9"><h3 className="mb-3 text-lg font-bold">可安装</h3><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">{available.length ? available.map((addon) => { const isInstalling = installingAddonId === addon.id; return <div key={addon.id} className="flex items-center gap-4 px-5 py-5"><span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15"><CalendarDotsIcon size={24} /></span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h4 className="font-bold">{addon.name}</h4><span className="text-xs text-slate-400">v{addon.version}</span></div><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{addon.description}</p><p className="mt-2 text-xs font-medium text-brand-600 dark:text-brand-300">{addon.source}</p></div><button type="button" disabled={Boolean(installingAddonId)} onClick={() => install(addon.id)} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70">{isInstalling ? <ArrowClockwiseIcon size={18} className="animate-spin" /> : <DownloadSimpleIcon size={18} />}{isInstalling ? "正在安装…" : "安装"}</button></div>; }) : <p className="p-8 text-center text-sm text-slate-500">未找到匹配的插件。</p>}</div></section></>;
 }
 
 function SourcesPage({ sources, setSources, add, notify }: { sources: ControlSource[]; setSources: React.Dispatch<React.SetStateAction<ControlSource[]>>; add: () => void; notify: (tone: NonNullable<Notice>["tone"], text: string) => void }) {
