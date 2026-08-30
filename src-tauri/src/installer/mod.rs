@@ -1,6 +1,6 @@
 mod archive;
 mod manifest;
-mod paths;
+pub(crate) mod paths;
 mod publish_xml;
 mod transaction;
 mod wps;
@@ -81,6 +81,16 @@ fn ensure_supported_wps_version() -> Result<(), InstallerError> {
         });
     }
     Ok(())
+}
+
+/// Returns the values needed by the permissions screen without enumerating
+/// the add-on directory. Enumeration itself can fail when access is denied,
+/// which used to prevent the screen from reporting a useful permission state.
+pub(crate) fn permission_target() -> Result<(bool, bool, InstallPaths), InstallerError> {
+    let wps_found = wps::application_exists();
+    let wps_path_readable = wps_found && wps::version().is_ok();
+    let paths = InstallPaths::from_installation("probe", "0")?;
+    Ok((wps_found, wps_path_readable, paths))
 }
 
 pub fn inspect(_app: &AppHandle) -> Result<EnvironmentReport, InstallerError> {

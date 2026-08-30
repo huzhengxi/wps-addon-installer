@@ -19,7 +19,7 @@ pub struct InstallPaths {
 impl InstallPaths {
     pub fn from_manifest(manifest: &AddonManifest) -> Result<Self, InstallerError> {
         let home = home_dir()?;
-        let jsaddons_relative = js_addons_relative_to_home(manifest)?;
+        let jsaddons_relative = js_addons_relative_to_home(manifest, &home)?;
         let jsaddons_dir = safe_descendant(&home, jsaddons_relative)?;
         let target_dir = safe_child(&jsaddons_dir, &manifest.archive_root)?;
         let publish_xml = safe_child(&jsaddons_dir, "publish.xml")?;
@@ -40,8 +40,8 @@ impl InstallPaths {
         let home = home_dir()?;
         #[cfg(target_os = "windows")]
         let relative = "AppData/Roaming/kingsoft/wps/jsaddons";
-        #[cfg(not(target_os = "windows"))]
-        let relative = "Library/Application Support/Kingsoft/WPS Office/jsaddons";
+        #[cfg(target_os = "macos")]
+        let relative = macos_jsaddons_relative_to_home(&home);
         let jsaddons_dir = safe_descendant(&home, relative)?;
         let archive_root = format!("{id}_{version}");
         Ok(Self {
@@ -81,7 +81,7 @@ fn home_dir() -> Result<PathBuf, InstallerError> {
 }
 
 /// 按目标平台选择清单中的 jsaddons 相对路径。
-fn js_addons_relative_to_home(manifest: &AddonManifest) -> Result<&str, InstallerError> {
+fn js_addons_relative_to_home<'a>(manifest: &'a AddonManifest, home: &Path) -> Result<&'a str, InstallerError> {
     #[cfg(target_os = "windows")]
     {
         manifest
@@ -93,9 +93,29 @@ fn js_addons_relative_to_home(manifest: &AddonManifest) -> Result<&str, Installe
                 InstallerError::PayloadInvalid("资源清单缺少 Windows 加载项目录配置。".into())
             })
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        Ok(&manifest.wps.js_addons_relative_to_home)
+        let _ = manifest;
+        Ok(macos_jsaddons_relative_to_home(home))
+    }
+}
+
+#[cfg(target_os = "macos")]
+const SANDBOXED_JSADDONS_RELATIVE: &str =
+    "Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps/jsaddons";
+#[cfg(target_os = "macos")]
+const LEGACY_JSADDONS_RELATIVE: &str = "Library/Application Support/Kingsoft/WPS Office/jsaddons";
+
+/// Current macOS WPS releases are sandboxed and store JS add-ons inside their
+/// container. Older releases used a shared Application Support directory, so
+/// retain it as a fallback for compatibility.
+#[cfg(target_os = "macos")]
+fn macos_jsaddons_relative_to_home(home: &Path) -> &'static str {
+    let sandboxed_wps_data = home.join("Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps");
+    if sandboxed_wps_data.is_dir() {
+        SANDBOXED_JSADDONS_RELATIVE
+    } else {
+        LEGACY_JSADDONS_RELATIVE
     }
 }
 
@@ -144,5 +164,25 @@ mod tests {
         assert!(safe_descendant(root, "../escape").is_err());
         assert!(safe_descendant(root, "a//b").is_err());
         assert!(safe_descendant(root, "a/b/c").is_ok());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_prefers_the_existing_sandboxed_wps_data_directory() {
+        let temporary = tempfile::tempdir().unwrap();
+        assert_eq!(
+            macos_jsaddons_relative_to_home(temporary.path()),
+            LEGACY_JSADDONS_RELATIVE
+        );
+        std::fs::create_dir_all(
+            temporary
+                .path()
+                .join("Library/Containers/com.kingsoft.wpsoffice.mac/Data/.kingsoft/wps"),
+        )
+        .unwrap();
+        assert_eq!(
+            macos_jsaddons_relative_to_home(temporary.path()),
+            SANDBOXED_JSADDONS_RELATIVE
+        );
     }
 }

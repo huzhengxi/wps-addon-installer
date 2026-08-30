@@ -1,5 +1,6 @@
 use std::{
     fs,
+    fs::OpenOptions,
     process::Command,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -264,25 +265,48 @@ pub fn resolve_catalog_addon(
     Ok(addon)
 }
 
-pub fn inspect_permissions(app: &AppHandle) -> Result<PermissionReport, CatalogError> {
-    let environment = installer::inspect(app).map_err(|error| CatalogError::Environment(error.to_string()))?;
-    let jsaddons_path = environment.js_addons_path;
-    let path = std::path::Path::new(&jsaddons_path);
-    let jsaddons_writable = path.exists() && path.is_dir() && fs::read_dir(path).is_ok();
+pub fn inspect_permissions(_app: &AppHandle) -> Result<PermissionReport, CatalogError> {
+    let (wps_found, wps_path_readable, paths) =
+        installer::permission_target().map_err(|error| CatalogError::Environment(error.to_string()))?;
+    let jsaddons_path = paths.jsaddons_dir.display().to_string();
+    let jsaddons_writable = check_jsaddons_write_access(&paths);
     let guidance = if jsaddons_writable {
-        "WPS 加载项目录可读取；安装时将再次验证写入权限。".into()
+        "WPS 加载项目录可读写，安装时仍会再次验证写入权限。".into()
     } else if cfg!(target_os = "macos") {
         "请在系统设置 → 隐私与安全性 → 文件与文件夹中允许访问；若仍失败，请在完全磁盘访问权限中加入本应用。".into()
     } else {
         "请检查 Windows 文件系统访问或受控文件夹访问设置，然后重新检测。".into()
     };
     Ok(PermissionReport {
-        wps_found: environment.wps_installed,
-        wps_path_readable: environment.wps_version.is_some(),
+        wps_found,
+        wps_path_readable,
         jsaddons_writable,
         jsaddons_path,
         guidance,
     })
+}
+
+/// Verifies the exact access required for installation. The add-on directory
+/// is created when missing (the installer does this as well), then a uniquely
+/// named empty file is created and immediately removed. This avoids treating a
+/// readable-but-not-writable directory as an approved permission state.
+fn check_jsaddons_write_access(paths: &installer::paths::InstallPaths) -> bool {
+    if paths.ensure_jsaddons_dir().is_err() {
+        return false;
+    }
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let file_name = format!(".wps-addon-manager-permission-{nonce}");
+    let Ok(probe) = paths.checked_child(&file_name) else {
+        return false;
+    };
+    let Ok(file) = OpenOptions::new().write(true).create_new(true).open(&probe) else {
+        return false;
+    };
+    drop(file);
+    fs::remove_file(probe).is_ok()
 }
 
 pub fn open_permission_settings() -> Result<(), CatalogError> {

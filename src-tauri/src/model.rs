@@ -48,9 +48,12 @@ pub struct CatalogAddon {
     pub published_at: Option<String>,
     #[serde(default)]
     pub release_notes: Option<String>,
-    #[serde(skip)]
+    // The source identity is assigned by the backend after parsing a remote
+    // index. It must be sent to the UI so installation can be resolved back
+    // to the trusted source, but must never be accepted from that index.
+    #[serde(skip_deserializing, default)]
     pub source_id: String,
-    #[serde(skip)]
+    #[serde(skip_deserializing, default)]
     pub source_name: String,
 }
 
@@ -86,6 +89,7 @@ pub struct PermissionReport {
 pub enum InstallationStatus {
     NotInstalled,
     Installed,
+    Partial,
     Unsupported,
 }
 
@@ -130,4 +134,32 @@ pub struct AppUpdateInfo {
     pub version: String,
     pub notes: Option<String>,
     pub pub_date: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CatalogAddon;
+
+    #[test]
+    fn catalog_addon_serializes_backend_source_identity() {
+        let addon = CatalogAddon {
+            id: "date-picker".into(),
+            name: "日期选择器".into(),
+            addon_type: "et".into(),
+            version: "1.0.1".into(),
+            description: String::new(),
+            platforms: Vec::new(),
+            download_url: "https://example.com/date-picker.7z".into(),
+            sha256: "a".repeat(64),
+            size: 1,
+            published_at: None,
+            release_notes: None,
+            source_id: "official".into(),
+            source_name: "官方控件源".into(),
+        };
+
+        let value = serde_json::to_value(addon).unwrap();
+        assert_eq!(value["sourceId"], "official");
+        assert_eq!(value["sourceName"], "官方控件源");
+    }
 }
