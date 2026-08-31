@@ -56,33 +56,35 @@ export function App() {
     if (update) setModal("update");
   }, [update]);
 
-  return <main className="grid h-full grid-cols-[216px_minmax(0,1fr)] bg-[#f5f6fa] text-slate-900 dark:bg-[#11151e] dark:text-slate-100">
+  return <main className="grid h-full grid-cols-[200px_minmax(0,1fr)] bg-[#f7f7fb] text-slate-900 dark:bg-[#10141d] dark:text-slate-100">
     <Sidebar page={page} onNavigate={setPage} permissionNeedsAttention={permissionNeedsAttention} wpsConnectionState={wpsConnectionState} isCheckingUpdate={isCheckingUpdate} onCheckUpdate={checkForUpdate} />
 
-    <section className="min-w-0 overflow-auto p-8">
-      {installingAddon && <InstallingAddonBanner addon={installingAddon} />}
-      {notice && <NoticeBanner notice={notice} onDismiss={clearNotice} />}
-      {page === "addons" && <AddonsPage
-        installed={installed}
-        available={available}
-        query={query}
-        selected={selected}
-        environment={environment}
-        environmentError={environmentError}
-        isUninstalling={isUninstalling}
-        isRefreshing={isRefreshingAddons}
-        installingAddonId={installingAddonId}
-        setQuery={setQuery}
-        setSelected={setSelected}
-        install={install}
-        onRefresh={() => { void refreshAddons(); }}
-        onOpenPermissions={() => setPage("permissions")}
-        onUninstall={() => setModal("uninstall")}
-      />}
-      {page === "sources" && <SourcesPage sources={sources} testingSourceIds={testingSourceIds} onAdd={() => setModal("source")} onTest={testSource} onToggle={toggleSource} />}
-      {page === "permissions" && <PermissionsPage report={permissionReport} granted={permissionGranted} onRecheck={recheckPermissions} onOpenSettings={openSettings} />}
-      {page === "help" && <HelpPage onOpen={(guideId) => { setHelpGuideId(guideId); setPage("help-document"); }} />}
-      {page === "help-document" && <HelpDocumentPage guideId={helpGuideId} onBack={() => setPage("help")} onNavigate={setHelpGuideId} />}
+    <section className="min-w-0 overflow-auto px-8 py-7">
+      <div className="mx-auto w-full max-w-[1080px]">
+        {installingAddon && <InstallingAddonBanner addon={installingAddon} />}
+        {notice && <NoticeBanner notice={notice} onDismiss={clearNotice} />}
+        {page === "addons" && <AddonsPage
+          installed={installed}
+          available={available}
+          query={query}
+          selected={selected}
+          environment={environment}
+          environmentError={environmentError}
+          isUninstalling={isUninstalling}
+          isRefreshing={isRefreshingAddons}
+          installingAddonId={installingAddonId}
+          setQuery={setQuery}
+          setSelected={setSelected}
+          install={install}
+          onRefresh={() => { void refreshAddons(); }}
+          onOpenPermissions={() => setPage("permissions")}
+          onUninstall={() => setModal("uninstall")}
+        />}
+        {page === "sources" && <SourcesPage sources={sources} testingSourceIds={testingSourceIds} onAdd={() => setModal("source")} onTest={testSource} onToggle={toggleSource} />}
+        {page === "permissions" && <PermissionsPage report={permissionReport} granted={permissionGranted} onRecheck={recheckPermissions} onOpenSettings={openSettings} />}
+        {page === "help" && <HelpPage onOpen={(guideId) => { setHelpGuideId(guideId); setPage("help-document"); }} />}
+        {page === "help-document" && <HelpDocumentPage guideId={helpGuideId} onBack={() => setPage("help")} onNavigate={setHelpGuideId} />}
+      </div>
     </section>
 
     {modal === "source" && <AddSourceModal onClose={() => setModal(null)} onConfirm={addSource} />}
