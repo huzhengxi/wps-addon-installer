@@ -19,7 +19,7 @@
     "url": "https://github.com/huzhengxi/wps-addon-manager/issues"
   },
   "private": true,
-  "version": "0.0.13",
+  "version": "0.0.14",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
