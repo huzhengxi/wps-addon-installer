@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_arm64.zip" -type f | head -n1)
+          zip=$(find src-tauri/target -name "wps-addon-manager_macos_*_arm64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS arm64 zip not found"; exit 1; }
           cp "$zip" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_arm64.zip"
           tar_gz=$(find src-tauri/target -path '*bundle/macos/*.app.tar.gz' -type f | head -n1)
@@ -99,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          zip=$(find src-tauri/target -name "wps-addon-installer_macos_*_x64.zip" -type f | head -n1)
+          zip=$(find src-tauri/target -name "wps-addon-manager_macos_*_x64.zip" -type f | head -n1)
           [ -n "$zip" ] || { echo "macOS x64 zip not found"; exit 1; }
           cp "$zip" "release-assets/wps-addon-installer_${{ steps.ver.outputs.version }}_macos_x64.zip"
           tar_gz=$(find src-tauri/target -path '*bundle/macos/*.app.tar.gz' -type f | head -n1)
